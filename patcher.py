@@ -13,26 +13,97 @@
 #    ''' This Class allows us to store, call and manage our Patch Files information. '''
  
 ### IMPORT MODULES
-import urllib2, sys, re
+import urllib2, sys, re, subprocess, os
 from xml.dom import minidom
-L = []
 
 ### USER VARS
 # Where we can find the XML page of available updates from Citrix
 patchxmlurl = 'http://updates.xensource.com/XenServer/updates.xml'
 # Where we can store some temporary data
 tmpfile = '/var/tmp/xml.tmp'
-# Version to match against; 62 here means: 6.2
-xsver = 62
+
+### INITIAL VARS
+# Setup empty List for later
+L = []
 
 ### FUNCTIONS START
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="None", url="None"):
+    ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
-    print("Printing dict:")
-    print(dict)
+    #### DEBUG
+    #print("Printing dict:")
+    #print(dict)
     L.append(dict)
 
+def listremovedupe(uuid):
+    ''' Function to compare the list formed by the function above, to see if a passed patch UUID already exists; and
+        if it does, remove it from the list (as it's already installed.) '''
+    patch_to_remove = (patch for patch in L if patch["uuid"] == uuid ).next()
+    L.remove(patch_to_remove)
+
+def which(program):
+    ''' Function for establishing if a particular executable is available in the System Path; returns full
+        exec path+name on success, or None on fail. '''
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+
 ### CODE START
+# Validate that we're running XenServer
+relver = '/etc/redhat-release'
+xs = False
+xsver = None
+try:
+    with open(relver, "r") as f:
+        filedata = str(f.read().replace('\n', ''))
+        file_list = filedata.split()
+        ### DEBUG
+        #print(file_list)
+        if "XenServer" or "Xenserver" in file_list:
+            xs = True
+            fullver = file_list[2]
+            shortver = fullver.split("-")[0]
+            if len(shortver.split('.')) > 2:
+                if shortver.split('.')[2] == "0":
+                    majver = shortver.split('.')[0]
+                    minver = shortver.split('.')[1]
+                    xsver = str(majver) + str(minver)
+                else:
+                    majver = shortver.split('.')[0]
+                    minver = shortver.split('.')[1]
+                    subver = shortver.split('.')[2]
+                    xsver = str(majver) + str(minver) + str(subver)
+
+except IOError as err:
+    print("Failed to open " + relver)
+    print("Is this host definitely a XenServer?")
+    sys.exit(3)
+
+if xs == False:
+    print("Failed to identify this host as a XenServer box.")
+    sys.exit(4)
+
+if xsver == None:
+    print("Failed to identify XenServer Version.")
+    sys.exit(5)
+
+xecli = which("xe")
+if xecli == None:
+    print("Failed to locate the XE CLI Utility required for patching.")
+    sys.exit(8)
+
 try:
     # Get XML
     downloaded_data = urllib2.urlopen(patchxmlurl)
@@ -64,9 +135,7 @@ xmldoc = minidom.parse(tmpfile)
 xmlpatches = xmldoc.getElementsByTagName('patch')
 
 # DEBUG - Print found number of Items
-print(len(xmlpatches))
-
-# Initialise List
+#print(len(xmlpatches))
 
 #Convert xsver to a string for use in regex
 xsverstr = str(xsver)
@@ -105,16 +174,40 @@ for s in xmlpatches:
         
         # PUSH TO LIST
         listappend(name_label, patch_url, uuid, name_description, after_apply_guidance, timestamp, url)
-#    except KeyError as err:
-#        print("KeyError hit: " + str(err))
-#        pass
-print("Here's the list...")
-print(L)
-## Just Patch Names:
-#p = re.compile('name-label="XS') # + xsverstr + '[a-zA-Z0-9]"')
-#m = p.match(data)
-#print(m)
-print("")
-print("Exclude:")
-exclude = str("XS62E005")
-print(patch for patch in L if patch["name_label"] == exclude ).next()
+
+## Validate that there is something defined... else quit.
+if L == []:
+    print("No Patches found on remote server for XS" + str(xsver))
+    sys.exit(6)
+
+# OK, so now we have a complete list of patches that Citrix have to offer. Lets see what we have installed already,
+# and remove those from the list we made above.
+
+get_host_uuid_cmd = str(xecli) + str(" host-list params=uuid --minimal")
+get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, shell=True)
+(out, err) = get_host_uuid.communicate()
+if err == None:
+    HOSTUUID = str(out).replace('\n', '')
+else:
+    print("Failed to get HostUUID from XE")
+    sys.exit(7)
+
+# Setup empty list:
+inst_patch_list = []
+
+get_inst_patch_cmd = str(xecli) + str(" patch-list hosts=") + str(HOSTUUID) + str(" --minimal")
+get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, shell=True)
+(out, err) = get_inst_patch.communicate()
+if err == None and out != None:
+    inst_patch_list = out.replace('\n', '').split(",")
+else:
+    print("Failed to get Patch List from XE")
+    sys.exit(7)
+
+if inst_patch_list == []:
+    print("No local Patches are installed.")
+for uuid in inst_patch_list:
+    listremovedupe(uuid)
+
+print("The following Patches are pending installation:")
+print(L.replace(',','\n').replace('{','\n\n').replace('}',''.replace('[','').replace(']','')))
