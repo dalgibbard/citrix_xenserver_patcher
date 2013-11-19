@@ -15,6 +15,7 @@
 ### IMPORT MODULES
 import urllib2, sys, re
 from xml.dom import minidom
+L = []
 
 ### USER VARS
 # Where we can find the XML page of available updates from Citrix
@@ -23,6 +24,13 @@ patchxmlurl = 'http://updates.xensource.com/XenServer/updates.xml'
 tmpfile = '/var/tmp/xml.tmp'
 # Version to match against; 62 here means: 6.2
 xsver = 62
+
+### FUNCTIONS START
+def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="None", url="None"):
+    dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
+    print("Printing dict:")
+    print(dict)
+    L.append(dict)
 
 ### CODE START
 try:
@@ -58,23 +66,55 @@ xmlpatches = xmldoc.getElementsByTagName('patch')
 # DEBUG - Print found number of Items
 print(len(xmlpatches))
 
-### Parse Vars for each patch to a Dict, and add each Dict (PLUS) to the List
 # Initialise List
-L = []
 
 #Convert xsver to a string for use in regex
 xsverstr = str(xsver)
 
+### Parse Vars for each patch to a Dict, and add each Dict (PLUS) to the List
 for s in xmlpatches:
     try:
         patchname = s.attributes['name-label'].value
-        vermatch = "XS" + xsverstr
-        if re.match(vermatch, patchname):
-            print(patchname)
     except KeyError:
-        pass
-
+        continue
+    vermatch = "XS" + xsverstr
+    if re.match(vermatch, patchname):
+        # Set the name-label (Patch Filename)
+        name_label = str(s.attributes['name-label'].value)
+        # Set the patch-url (Where to download it from)
+        patch_url = str(s.attributes['patch-url'].value)
+        # Set the uuid (ID of the Patch)
+        uuid = str(s.attributes['uuid'].value)
+        # Set the name-description (What it fixes)
+        name_description = str(s.attributes['name-description'].value)
+        # Set the after-apply-guidance (What to do with the host once installed)
+        try:
+            after_apply_guidance = str(s.attributes['after-apply-guidance'].value)
+        except KeyError:
+            after_apply_guidance = None
+        # Set the timestamp (when the patch was made available)
+        try:
+            timestamp = str(s.attributes['timestamp'].value)
+        except KeyError:
+            timestamp = None
+        # Set the url (URL where Patch information can be found)
+        try:
+            url = str(s.attributes['url'].value)
+        except KeyError:
+            url = None
+        
+        # PUSH TO LIST
+        listappend(name_label, patch_url, uuid, name_description, after_apply_guidance, timestamp, url)
+#    except KeyError as err:
+#        print("KeyError hit: " + str(err))
+#        pass
+print("Here's the list...")
+print(L)
 ## Just Patch Names:
 #p = re.compile('name-label="XS') # + xsverstr + '[a-zA-Z0-9]"')
 #m = p.match(data)
 #print(m)
+print("")
+print("Exclude:")
+exclude = str("XS62E005")
+print(patch for patch in L if patch["name_label"] == exclude ).next()
