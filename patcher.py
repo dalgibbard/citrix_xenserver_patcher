@@ -78,7 +78,16 @@ xs = False
 xsver = None
 
 # Open Filehandle to relver to check version
-f = open(relver, "r")
+try:
+    f = open(relver, "r")
+except IOError:
+    print("Error Opening " + relver)
+    try:
+        f.close()
+    except NameError:
+        pass
+    sys.exit(11)
+
 try:
     filedata = str(f.read().replace('\n', ''))
     file_list = filedata.split()
@@ -132,7 +141,16 @@ data = downloaded_data.read()
 #print(data)
 
 # Output to tmpfile
-t = open(tmpfile, "wb")
+try:
+    t = open(tmpfile, "wb")
+except IOError:
+    print("Error Opening " + relver)
+    try:
+        t.close()
+    except NameError:
+        pass
+    sys.exit(11)
+    
 try:
     t.write(data)
 finally:
@@ -141,9 +159,6 @@ finally:
 # Parse XML to Vars
 xmldoc = minidom.parse(tmpfile)
 xmlpatches = xmldoc.getElementsByTagName('patch')
-
-# DEBUG - Print found number of Items
-#print(len(xmlpatches))
 
 #Convert xsver to a string for use in regex
 xsverstr = str(xsver)
