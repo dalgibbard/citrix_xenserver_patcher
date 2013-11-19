@@ -50,7 +50,12 @@ def listremovedupe(uuid):
     except AttributeError:
         # Python v3
         patch_to_remove = next((patch for patch in L if patch["uuid"] == uuid ), None)
-    L.remove(patch_to_remove)
+    except StopIteration:
+        pass
+    try:
+        L.remove(patch_to_remove)
+    except UnboundLocalError:
+        pass
 
 def which(program):
     ''' Function for establishing if a particular executable is available in the System Path; returns full
@@ -232,15 +237,21 @@ get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, 
 (out, err) = get_inst_patch.communicate()
 if err == None and out != None:
     inst_patch_utf8 = out.decode("utf8")
-    inst_patch_list = inst_patch_utf8.replace('\n', '').split(",")
+    inst_patch_str = str(inst_patch_utf8.replace('\n', ''))
+    inst_patch_list = inst_patch_str.split(",")
 else:
     print("Failed to get Patch List from XE")
     sys.exit(9)
+
+### DEBUG
+print("HOSTUUID: " + HOSTUUID)
+print("Installed Patches: " + str(inst_patch_list))
 
 if inst_patch_list == [] or inst_patch_list == "" or inst_patch_list == ['']:
     print("No local Patches are installed.")
 for uuid in inst_patch_list:
     listremovedupe(uuid)
+
 
 var = str(L)
 vara = var.replace(',','\n').replace('{','\n\n').replace('}','').replace('[','').replace(']','')
