@@ -109,8 +109,7 @@ if xsver == None:
     print("Failed to identify XenServer Version.")
     sys.exit(5)
 
-#xecli = which("xe")
-xecli = "xe"
+xecli = which("xe")
 if xecli == None:
     print("Failed to locate the XE CLI Utility required for patching.")
     sys.exit(8)
