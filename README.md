@@ -1,6 +1,7 @@
-# citrix_xenserver_patcher
+citrix_xenserver_patcher
+========================
 
-Python code for finding and applying updates.
+Auto / Manual Patching tool for Citrix XenServer Boxes
 
 ## To-do:
 * Automatic detection of XS version
