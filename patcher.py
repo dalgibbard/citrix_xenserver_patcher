@@ -13,8 +13,14 @@
 #    ''' This Class allows us to store, call and manage our Patch Files information. '''
  
 ### IMPORT MODULES
-import urllib2, sys, re, subprocess, os
+import sys, re, subprocess, os
 from xml.dom import minidom
+try:
+    # Python v2
+    from urllib2 import urlopen
+except ImportError:
+    # Python v3
+    from urllib.request import urlopen
 
 ### USER VARS
 # Where we can find the XML page of available updates from Citrix
@@ -38,7 +44,12 @@ def listappend(name_label, patch_url, uuid, name_description="None", after_apply
 def listremovedupe(uuid):
     ''' Function to compare the list formed by the function above, to see if a passed patch UUID already exists; and
         if it does, remove it from the list (as it's already installed.) '''
-    patch_to_remove = (patch for patch in L if patch["uuid"] == uuid ).next()
+    try:
+        # Python v2
+        patch_to_remove = (patch for patch in L if patch["uuid"] == uuid ).next()
+    except AttributeError:
+        # Python v3
+        patch_to_remove = next((patch for patch in L if patch["uuid"] == uuid ), None)
     L.remove(patch_to_remove)
 
 def which(program):
@@ -65,31 +76,30 @@ def which(program):
 relver = '/etc/redhat-release'
 xs = False
 xsver = None
-try:
-    with open(relver, "r") as f:
-        filedata = str(f.read().replace('\n', ''))
-        file_list = filedata.split()
-        ### DEBUG
-        #print(file_list)
-        if "XenServer" or "Xenserver" in file_list:
-            xs = True
-            fullver = file_list[2]
-            shortver = fullver.split("-")[0]
-            if len(shortver.split('.')) > 2:
-                if shortver.split('.')[2] == "0":
-                    majver = shortver.split('.')[0]
-                    minver = shortver.split('.')[1]
-                    xsver = str(majver) + str(minver)
-                else:
-                    majver = shortver.split('.')[0]
-                    minver = shortver.split('.')[1]
-                    subver = shortver.split('.')[2]
-                    xsver = str(majver) + str(minver) + str(subver)
 
-except IOError as err:
-    print("Failed to open " + relver)
-    print("Is this host definitely a XenServer?")
-    sys.exit(3)
+# Open Filehandle to relver to check version
+f = open(relver, "r")
+try:
+    filedata = str(f.read().replace('\n', ''))
+    file_list = filedata.split()
+    ### DEBUG
+    #print(file_list)
+    if "XenServer" or "Xenserver" in file_list:
+        xs = True
+        fullver = file_list[2]
+        shortver = fullver.split("-")[0]
+        if len(shortver.split('.')) > 2:
+            if shortver.split('.')[2] == "0":
+                majver = shortver.split('.')[0]
+                minver = shortver.split('.')[1]
+                xsver = str(majver) + str(minver)
+            else:
+                majver = shortver.split('.')[0]
+                minver = shortver.split('.')[1]
+                subver = shortver.split('.')[2]
+                xsver = str(majver) + str(minver) + str(subver)
+finally:
+    f.close()
 
 if xs == False:
     print("Failed to identify this host as a XenServer box.")
@@ -99,15 +109,16 @@ if xsver == None:
     print("Failed to identify XenServer Version.")
     sys.exit(5)
 
-xecli = which("xe")
+#xecli = which("xe")
+xecli = "xe"
 if xecli == None:
     print("Failed to locate the XE CLI Utility required for patching.")
     sys.exit(8)
 
 try:
     # Get XML
-    downloaded_data = urllib2.urlopen(patchxmlurl)
-except (urllib2.HTTPError, urllib2.URLError) as err:
+    downloaded_data = urlopen(patchxmlurl)
+except (urllib2.HTTPError, urllib2.URLError):
     # Handle Errors
     print("Failed to read Citrix Patch List from: " + patchxmlurl)
     print("Check the URL is available, and connectivity is OK.")
@@ -122,13 +133,11 @@ data = downloaded_data.read()
 #print(data)
 
 # Output to tmpfile
+t = open(tmpfile, "wb")
 try:
-    with open(tmpfile, "w") as myfile:
-        myfile.write(data)
-except IOError as err:
-    print("Failed to write to tmpfile: " + tmpfile)
-    print("Error: " + err)
-    sys.exit(2)
+    t.write(data)
+finally:
+    t.close()
 
 # Parse XML to Vars
 xmldoc = minidom.parse(tmpfile)
@@ -183,31 +192,46 @@ if L == []:
 # OK, so now we have a complete list of patches that Citrix have to offer. Lets see what we have installed already,
 # and remove those from the list we made above.
 
+out = None
+err = None
 get_host_uuid_cmd = str(xecli) + str(" host-list params=uuid --minimal")
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, shell=True)
 (out, err) = get_host_uuid.communicate()
-if err == None:
-    HOSTUUID = str(out).replace('\n', '')
+if err == None and out != None:
+    HOSTUUID_utf8 = out.decode("utf8")
+    HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
 else:
     print("Failed to get HostUUID from XE")
     sys.exit(7)
 
+if HOSTUUID == "" or HOSTUUID == ['']:
+    print("Error: Failed to obtain HOSTUUID from XE CLI")
+    sys.exit(10)
+
 # Setup empty list:
 inst_patch_list = []
 
+out = None
+err = None
 get_inst_patch_cmd = str(xecli) + str(" patch-list hosts=") + str(HOSTUUID) + str(" --minimal")
 get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, shell=True)
 (out, err) = get_inst_patch.communicate()
 if err == None and out != None:
-    inst_patch_list = out.replace('\n', '').split(",")
+    inst_patch_utf8 = out.decode("utf8")
+    inst_patch_list = inst_patch_utf8.replace('\n', '').split(",")
 else:
     print("Failed to get Patch List from XE")
-    sys.exit(7)
+    sys.exit(9)
 
-if inst_patch_list == []:
+if inst_patch_list == [] or inst_patch_list == "" or inst_patch_list == ['']:
     print("No local Patches are installed.")
 for uuid in inst_patch_list:
     listremovedupe(uuid)
 
-print("The following Patches are pending installation:")
-print(L.replace(',','\n').replace('{','\n\n').replace('}',''.replace('[','').replace(']','')))
+var = str(L)
+vara = var.replace(',','\n').replace('{','\n\n').replace('}','').replace('[','').replace(']','')
+if vara == "":
+    print("No Patches Required. System is up to date.")
+else:
+    print("The following Patches are pending installation:")
+    print(vara)
