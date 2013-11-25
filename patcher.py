@@ -1,17 +1,30 @@
 #!/usr/bin/python
 #
-# Written for Python 2.4 which is present in current XenServer 6.1/6.2+ Builds
+# Citrix XenServer Patcher - v1.0
+# -- Designed to automatically review available patches from Citrix's XML API,
+#    compare with already installed patches, and apply as necessary- prompting the user
+#    to reboot if necessary.
 #
+# Written by: Darren Gibbard
+# URL:        http://dgunix.com
+# Github:     http://github.com/dalgibbard/citrix_xenserver_patcher
+#
+# To Do: 
+#   * Add a "-a" flag to supress output, and auto apply all changes.
+#   * Add a "-n" flag to append the above -a, to NOT auto-reboot.
+#   * Add a "-h" flag to provide help
+#   * Improve code layout
+#   * Increase code comments to help others understand WTF is going on.
+#
+# Written for Python 2.4 which is present in current XenServer 6.1/6.2+ Builds, but also
+# tested against Python2.7 and 3.2 where possible for future compatibility.
+#
+# LICENSE:
 # No real license here... Do whatever. I'd appreciate it if you fork this code and commit back
-# with any good updates though :)
+# with any good updates though :) It's been pretty hacked together for now, so any code cleanups
+# in particular are most welcome!
 #
 
-
-#def somethingfunc(applyguide=restartHost, name, description="No Description", url, timestamp=None, infourl=None, uuid):
-#        self.applyguide = applyguide
-#        self.
-#    ''' This Class allows us to store, call and manage our Patch Files information. '''
- 
 ### IMPORT MODULES
 import sys, re, subprocess, os
 from xml.dom import minidom
