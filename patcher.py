@@ -103,22 +103,22 @@ def download_patch(patch_url):
     return file_name
 
 def apply_patch(name_label, uuid, file_name, host_uuid):
-    patch_unzip_cmd = str("unzip -f") + str(file_name)
+    patch_unzip_cmd = str("unzip -u ") + str(file_name)
     ### Ready for patch extract
     out = None
     err = None
     do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_unzip.communicate()
     if not ( err == None and out != None ):
-        print("Error extracting compressed patchfile: " + str(file_name)
-    uncomp_file = str(name_label) + str(".xsupdate")
+        print("Error extracting compressed patchfile: " + str(file_name))
+    uncompfile = str(name_label) + str(".xsupdate")
     # Check {name_label}.xsupdate exists
-    if not os.path.isfile(uncomp_file):
-        print("Failed to locate unzipped patchfile: " + str(uncomp_file))
+    if not os.path.isfile(uncompfile):
+        print("Failed to locate unzipped patchfile: " + str(uncompfile))
         sys.exit(16)
     # Internal upload to XS patcher
-    patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(file_name)
-    do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, shell=true)
+    patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(uncompfile)
+    do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_upload.communicate()
     # Ignore output; we'll verify in a second.
     out = None
@@ -128,12 +128,12 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_upload_verify.communicate()
     if not ( err == None and out != None ):
-        print("Failed to validate the uploaded patch: " + str(file_name))
+        print("Failed to validate the uploaded patch: " + str(uncompfile))
         sys.exit(17)
     patch_upload_uuid_utf8 = out.decode("utf8")
     patch_upload_uuid = str(patch_upload_uuid_utf8.replace('\n', ''))
     if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
-        print("Patch internal upload failed. Quitting.")
+        print("Patch internal upload failed for: " + str(uncompfile))
         sys.exit(16)
     patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
     do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, shell=True)
@@ -145,12 +145,12 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply_verify.communicate()
     if not ( err == None and out != None ):
-        print("Failed to validate installed patch: " + str(file_name))
+        print("Failed to validate installed patch: " + str(uncompfile))
         sys.exit(18)
     patch_apply_uuid_utf8 = out.decode("utf8")
     patch_apply_uuid = str(patch_apply_uuid_utf8.replace('\n', ''))
     if not ( patch_apply_uuid != None and patch_apply_uuid == uuid ):
-        print("Patch apply failed for: " + str(file_name))
+        print("Patch apply failed for: " + str(uncompfile))
         sys.exit(19)
 
 ### CODE START
@@ -331,7 +331,7 @@ for uuid in inst_patch_list:
 
 
 var = str(L)
-vara = var.replace(',','\n').replace('{','\n\n').replace('}','').replace('[','').replace(']','')
+vara = var.replace(',','\n').replace('{','\n').replace('}','').replace('[','').replace(']','').replace("'", "")
 if vara == "":
     print("No Patches Required. System is up to date.")
     sys.exit(0)
@@ -339,8 +339,8 @@ if vara == "":
 print("The following Patches are pending installation:")
 print(vara)
 reboot = 0
-for after_apply_guidance in L.iteritems():
-    if after_apply_guidane == "restartHost":
+for a in L:
+    if str(a['after_apply_guidance']) == "restartHost":
         reboot = reboot + 1
 
 if reboot > 0:
@@ -349,7 +349,7 @@ if reboot > 0:
     print("")
 
 ans = raw_input("\nWould you like to install these items? [y/n]: ")
-if str(ans) == y or str(ans) == yes or str(ans) == Yes or str(ans) == Y or str(ans) == YES:
+if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
     print("Starting patching...")
     PATCH = 1
 else:
@@ -357,15 +357,17 @@ else:
     sys.exit(0)
 
 if PATCH == 1:
-    # For each pending patch, download the file; check download OK; and apply.
-    for uuid, name_label patch_url in L.iteritems():
+    for a in L:
+       uuid = str(a['uuid'])
+       patch_url = str(a['patch_url'])
+       name_label = str(a['name_label'])
        file_name = str(download_patch(patch_url))
        host_uuid = str(HOSTUUID)
        apply_patch(name_label, uuid, file_name, host_uuid)
 
 if reboot > 0:
     ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
-    if str(ans) == y or str(ans) == yes or str(ans) == Yes or str(ans) == Y or str(ans) == YES:
+    if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
         print("Rebooting...")
         os.system("reboot")
     else:
