@@ -79,6 +79,7 @@ def which(program):
 def download_patch(patch_url):
     url = patch_url
     file_name = url.split('/')[-1]
+    print("Downloading: " + str(file_name))
     u = urlopen(url)
     f = open(file_name, 'wb')
     meta = u.info()
@@ -103,6 +104,8 @@ def download_patch(patch_url):
     return file_name
 
 def apply_patch(name_label, uuid, file_name, host_uuid):
+    print("Applying: " + str(name_label))
+    print("Uncompressing...")
     patch_unzip_cmd = str("unzip -u ") + str(file_name)
     ### Ready for patch extract
     out = None
@@ -111,12 +114,14 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     (out, err) = do_patch_unzip.communicate()
     if not ( err == None and out != None ):
         print("Error extracting compressed patchfile: " + str(file_name))
+    os.remove(file_name)
     uncompfile = str(name_label) + str(".xsupdate")
     # Check {name_label}.xsupdate exists
     if not os.path.isfile(uncompfile):
         print("Failed to locate unzipped patchfile: " + str(uncompfile))
         sys.exit(16)
     # Internal upload to XS patcher
+    print("Internal Upload...")
     patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(uncompfile)
     do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_upload.communicate()
@@ -135,6 +140,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
         print("Patch internal upload failed for: " + str(uncompfile))
         sys.exit(16)
+    print("Applying Patch...")
     patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
     do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply.communicate()
@@ -152,6 +158,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     if not ( patch_apply_uuid != None and patch_apply_uuid == uuid ):
         print("Patch apply failed for: " + str(uncompfile))
         sys.exit(19)
+    os.remove(uncompfile)
 
 ### CODE START
 # Validate that we're running XenServer
