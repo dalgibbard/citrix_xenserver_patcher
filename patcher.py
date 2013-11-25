@@ -76,6 +76,83 @@ def which(program):
 
     return None
 
+def download_patch(patch_url):
+    url = patch_url
+    file_name = url.split('/')[-1]
+    u = urlopen(url)
+    f = open(file_name, 'wb')
+    meta = u.info()
+    file_size = int(meta.getheaders("Content-Length")[0])
+    print "Downloading: %s Bytes: %s" % (file_name, file_size)
+    
+    file_size_dl = 0
+    block_sz = 8192
+    while True:
+        buffer = u.read(block_sz)
+        if not buffer:
+            break
+        file_size_dl += len(buffer)
+        f.write(buffer)
+        status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
+        status = status + chr(8)*(len(status)+1)
+        print status,
+    f.close()
+    if not os.path.isfile(file_name):
+        print("ERROR: File download for " + str(file_name) + " unsuccessful.")
+        sys.exit(15)
+    return file_name
+
+def apply_patch(name_label, uuid, file_name, host_uuid):
+    patch_unzip_cmd = str("unzip -f") + str(file_name)
+    ### Ready for patch extract
+    out = None
+    err = None
+    do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, shell=True)
+    (out, err) = do_patch_unzip.communicate()
+    if not ( err == None and out != None ):
+        print("Error extracting compressed patchfile: " + str(file_name)
+    uncomp_file = str(name_label) + str(".xsupdate")
+    # Check {name_label}.xsupdate exists
+    if not os.path.isfile(uncomp_file):
+        print("Failed to locate unzipped patchfile: " + str(uncomp_file))
+        sys.exit(16)
+    # Internal upload to XS patcher
+    patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(file_name)
+    do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, shell=true)
+    (out, err) = do_patch_upload.communicate()
+    # Ignore output; we'll verify in a second.
+    out = None
+    err = None
+    patch_upload_uuid = None
+    patch_upload_verify_cmd = str(xecli) + str(' patch-list hosts="" params=uuid uuid=') + str(uuid) + str(" --minimal")
+    do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, shell=True)
+    (out, err) = do_patch_upload_verify.communicate()
+    if not ( err == None and out != None ):
+        print("Failed to validate the uploaded patch: " + str(file_name))
+        sys.exit(17)
+    patch_upload_uuid_utf8 = out.decode("utf8")
+    patch_upload_uuid = str(patch_upload_uuid_utf8.replace('\n', ''))
+    if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
+        print("Patch internal upload failed. Quitting.")
+        sys.exit(16)
+    patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
+    do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, shell=True)
+    (out, err) = do_patch_apply.communicate()
+    # Ignore output, we'll verify in a second.
+    out = None
+    err = None
+    patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+    do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, shell=True)
+    (out, err) = do_patch_apply_verify.communicate()
+    if not ( err == None and out != None ):
+        print("Failed to validate installed patch: " + str(file_name))
+        sys.exit(18)
+    patch_apply_uuid_utf8 = out.decode("utf8")
+    patch_apply_uuid = str(patch_apply_uuid_utf8.replace('\n', ''))
+    if not ( patch_apply_uuid != None and patch_apply_uuid == uuid ):
+        print("Patch apply failed for: " + str(file_name))
+        sys.exit(19)
+
 ### CODE START
 # Validate that we're running XenServer
 relver = '/etc/redhat-release'
@@ -244,8 +321,8 @@ else:
     sys.exit(9)
 
 ### DEBUG
-print("HOSTUUID: " + HOSTUUID)
-print("Installed Patches: " + str(inst_patch_list))
+#print("HOSTUUID: " + HOSTUUID)
+#print("Installed Patches: " + str(inst_patch_list))
 
 if inst_patch_list == [] or inst_patch_list == "" or inst_patch_list == ['']:
     print("No local Patches are installed.")
@@ -257,6 +334,42 @@ var = str(L)
 vara = var.replace(',','\n').replace('{','\n\n').replace('}','').replace('[','').replace(']','')
 if vara == "":
     print("No Patches Required. System is up to date.")
+    sys.exit(0)
+
+print("The following Patches are pending installation:")
+print(vara)
+reboot = 0
+for after_apply_guidance in L.iteritems():
+    if after_apply_guidane == "restartHost":
+        reboot = reboot + 1
+
+if reboot > 0:
+    print("\nNOTE: Installation of these items will require a reboot!")
+    print("      You will be prompted to reboot at the end.")
+    print("")
+
+ans = raw_input("\nWould you like to install these items? [y/n]: ")
+if str(ans) == y or str(ans) == yes or str(ans) == Yes or str(ans) == Y or str(ans) == YES:
+    print("Starting patching...")
+    PATCH = 1
 else:
-    print("The following Patches are pending installation:")
-    print(vara)
+    print("You didn't want to patch...")
+    sys.exit(0)
+
+if PATCH == 1:
+    # For each pending patch, download the file; check download OK; and apply.
+    for uuid, name_label patch_url in L.iteritems():
+       file_name = str(download_patch(patch_url))
+       host_uuid = str(HOSTUUID)
+       apply_patch(name_label, uuid, file_name, host_uuid)
+
+if reboot > 0:
+    ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
+    if str(ans) == y or str(ans) == yes or str(ans) == Yes or str(ans) == Y or str(ans) == YES:
+        print("Rebooting...")
+        os.system("reboot")
+    else:
+        print("OK, i'll let you reboot in your own time. Don't forget though!")
+else:
+    print("Restarting XAPI Toolstack...")
+    os.system("xe-toolstack-restart")
