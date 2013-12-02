@@ -13,11 +13,14 @@ If there is a particular feature (or bug!) you want sorted, please feel free to 
 * SSH to your XenServer Host (Use PuTTY if using a Windows PC).
 * Ensure you're logged on as the "root" user.
 * Get the XenServer Patcher Script:
+
 ```
 wget -O patcher.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/patcher.py
 chmod +x patcher.py
 ```
+
 * Run the patcher, and follow the prompts :)
+
 ```
 ./patcher.py
 ```
