@@ -9,6 +9,22 @@ for non-supported customers. This should allow individuals and the likes to patc
 Currently, this script is used directly on the Hypervisor itself (as root), and hasn't been designed with pools in mind...
 If there is a particular feature (or bug!) you want sorted, please feel free to raise an Issue here, and i'll look into it (or feel free to fork and commit fixes back!): https://github.com/dalgibbard/citrix_xenserver_patcher/issues
 
+## How To Use
+* SSH to your XenServer Host (Use PuTTY if using a Windows PC).
+* Ensure you're logged on as the "root" user.
+* Get the XenServer Patcher Script:
+```
+wget -O patcher.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/patcher.py
+chmod +x patcher.py
+```
+* Run the patcher, and follow the prompts :)
+```
+./patcher.py
+```
+
+Alternatively, distribute using Puppet, or some other form of shininess. But the above works fine :)
+
+
 ## To-do:
 * Manual run default; auto run available with "-a|--auto"
 * "-r|--report" option for feeding back pending updates via Cron or whatever
