@@ -93,8 +93,19 @@ def download_patch(patch_url):
     url = patch_url
     file_name = url.split('/')[-1]
     print("Downloading: " + str(file_name))
-    u = urlopen(url)
-    f = open(file_name, 'wb')
+    try:
+        u = urlopen(url)
+    except Exception, err:
+        print("Failed to Download Patch!")
+        print("Error: " + str(err))
+        sys.exit(3)
+        
+    try:
+        f = open(file_name, 'wb')
+    except IOError:
+        print("Failed to open/write to " + file_name)
+        sys.exit(2)
+
     meta = u.info()
     file_size = int(meta.getheaders("Content-Length")[0])
     print "Downloading: %s Bytes: %s" % (file_name, file_size)
