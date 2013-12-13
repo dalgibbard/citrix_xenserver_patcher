@@ -228,12 +228,12 @@ if xecli == None:
 try:
     # Get XML
     downloaded_data = urlopen(patchxmlurl)
-except (urllib2.HTTPError, urllib2.URLError):
+except Exception, err:
     # Handle Errors
-    print("Failed to read Citrix Patch List from: " + patchxmlurl)
+    print("\nFailed to read Citrix Patch List from: " + patchxmlurl)
     print("Check the URL is available, and connectivity is OK.")
     print("")
-    print("Error: " + err)
+    print("Error: " + str(err))
     sys.exit(1)
 
 # Set "data" to readable/printable page content.
