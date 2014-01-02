@@ -12,30 +12,44 @@ If there is a particular feature (or bug!) you want sorted, please feel free to 
 ## How To Use
 * SSH to your XenServer Host (Use PuTTY if using a Windows PC).
 * Ensure you're logged on as the "root" user.
-* Get the XenServer Patcher Script:
+* Get the XenServer Patcher Script- plus any exclusion files you need/want (or create your own!):
 
 ```
 wget -O patcher.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/patcher.py
+wget -O XS62_exclusions.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/XS62_exclusions.py
 chmod +x patcher.py
 ```
 
 * Run the patcher, and follow the prompts :)
 
+*IMPORTANT NOTE: BE SURE TO LOAD APPROPRIATE EXCLUDES FILE WHERE NECESSARY! Below example is suitable for XenServer 6.2:*
+
 ```
-./patcher.py
+./patcher.py -e ./XS62_exclusions.py
 ```
 
 Alternatively, distribute using Puppet, or some other form of shininess. But the above works fine :)
 
+### Other arguments:
+* The code supports a few other arguments too:
+
+```bash
+# ./patcher.py -h
+Usage: %s [-e /path/to/exclude_file] [-a] [-r] [-l]
+
+-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.
+-a                          => Enables auto-apply of patches - will NOT reboot host without below option.
+-r                          => Enables automatic reboot of Host on completion of patching without prompts.
+-l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.
+
+```
 
 ## To-do:
-* Manual run default; auto run available with "-a|--auto"
-* "-r|--report" option for feeding back pending updates via Cron or whatever
-* "-q|--quiet" option for no on-screen output. Exit codes will be very important therefore! (And the Documentation of..)
-* Manual run gives list of outstanding patches with options; can pick any number of patches to apply (Might be nice for people on strict patching policies, but not essential atm)
-* Ability to run script from local machine to patch a remote host...
-* Test XenServer Pool patching functionality. [Currently UNTESTED]
+[ ] "-q|--quiet" option for no on-screen output. Exit codes will be very important therefore! (And the Documentation of..)
+[ ] Manual run gives list of outstanding patches with options; can pick any number of patches to apply (Might be nice for people on strict patching policies, but not essential atm)
+[ ] Ability to run script from local machine to patch a remote host...
+[ ] Test XenServer Pool patching functionality. [Currently UNTESTED]
 
 
 
-Tags: XenServer Citrix Patch Patching Patcher Auto-Patcher Autopatcher
+Tags: XenServer Citrix Patch Patching Patcher Auto-Patcher Autopatcher Xen Server Python

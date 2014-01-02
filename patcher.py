@@ -1,6 +1,7 @@
 #!/usr/bin/python
 #
-# Citrix XenServer Patcher - v1.0
+# Citrix XenServer Patcher
+version = 1.1
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot if necessary.
@@ -10,9 +11,6 @@
 # Github:     http://github.com/dalgibbard/citrix_xenserver_patcher
 #
 # To Do: 
-#   * Add a "-a" flag to supress output, and auto apply all changes.
-#   * Add a "-n" flag to append the above -a, to NOT auto-reboot.
-#   * Add a "-h" flag to provide help
 #   * Improve code layout
 #   * Increase code comments to help others understand WTF is going on.
 #
@@ -26,7 +24,7 @@
 #
 
 ### IMPORT MODULES
-import sys, re, subprocess, os
+import sys, re, subprocess, os, getopt, time
 from xml.dom import minidom
 try:
     # Python v2
@@ -44,6 +42,71 @@ tmpfile = '/var/tmp/xml.tmp'
 ### INITIAL VARS
 # Setup empty List for later
 L = []
+# Specify empty excludes file -- when specified, this is a list of patches to IGNORE [opt: -e FILENAME ]
+exclude_file = False
+exclusions = False
+# Define "auto" as False by default -- when true, apply patches without question. [opt: -a ]
+auto = False
+# Define "reboot" as False by default. -- when true, if patches installed require host reboot, this will be done automatically!
+autoreboot = False
+# Define "listonly" as False by Default -- when true, list patches needed, but quit straight after. [opt: -l ]
+listonly = False
+
+## Define usage text
+def usage():
+    print("Usage: %s [-e /path/to/exclude_file] [-a] [-r] [-l] [-v]" % sys.argv[0])
+    print("")
+    print("-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.")
+    print("-a                          => Enables auto-apply of patches - will NOT reboot host without below option.")
+    print("-r                          => Enables automatic reboot of Host on completion of patching without prompts.")
+    print("-l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.")
+    print("-v                          => Display Version and Exit.")
+    sys.exit(1)
+
+
+# Parse Args:
+try:
+    myopts, args = getopt.getopt(sys.argv[1:],"ve:alr")
+except getopt.GetoptError:
+    usage()
+
+for o, a in myopts:
+    if o == '-v':
+        print("Citrix_XenServer_Patcher_Version: " + str(version))
+        sys.exit(0)
+    elif o == '-e':
+        exclude_file = str(a)
+        if not os.path.exists(exclude_file):
+            print("Failed to locate requested excludes file: " + exclude_file)
+            sys.exit(1)
+	try:
+            execfile(exclude_file)
+        except Exception:
+            print("An error occured whilst loading the exclude file: " + exclude_file)
+            sys.exit(1)
+        if exclusions == False:
+            print("No exclusions found in the loaded exceptions file...")
+            sys.exit(1)
+    elif o == '-a':
+        auto = True
+        if listonly == True:
+            print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
+            print("")
+            usage()
+    elif o == '-r':
+        autoreboot = True
+        if listonly == True:
+            print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
+            print("")
+            usage()
+    elif o == '-l':
+        listonly = True
+        if auto == True or autoreboot == True:
+            print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
+            print("")
+            usage()
+    else:
+        usage()
 
 ### FUNCTIONS START
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="None", url="None"):
@@ -69,6 +132,23 @@ def listremovedupe(uuid):
         L.remove(patch_to_remove)
     except UnboundLocalError:
         pass
+
+def listremoveexclude(namelabel):
+    ''' Similar to above function - but this will remove items from the "to_be_installed" list based on name-label
+        instead of UUID. '''
+    try:
+        # Python v2
+        patch_to_remove = (patch for patch in L if patch["name_label"] == namelabel ).next()
+    except AttributeError:
+        # Python v3
+        patch_to_remove = next((patch for patch in L if patch["name_label"] == namelabel ), None)
+    except StopIteration:
+        pass
+    try:
+        L.remove(patch_to_remove)
+    except UnboundLocalError:
+        pass
+    
 
 def which(program):
     ''' Function for establishing if a particular executable is available in the System Path; returns full
@@ -123,12 +203,12 @@ def download_patch(patch_url):
         print status,
     f.close()
     if not os.path.isfile(file_name):
-        print("ERROR: File download for " + str(file_name) + " unsuccessful.")
+        print("\nERROR: File download for " + str(file_name) + " unsuccessful.")
         sys.exit(15)
     return file_name
 
 def apply_patch(name_label, uuid, file_name, host_uuid):
-    print("Applying: " + str(name_label))
+    print("\nApplying: " + str(name_label))
     print("Uncompressing...")
     patch_unzip_cmd = str("unzip -u ") + str(file_name)
     ### Ready for patch extract
@@ -357,8 +437,13 @@ else:
 
 if inst_patch_list == [] or inst_patch_list == "" or inst_patch_list == ['']:
     print("No local Patches are installed.")
+## Request that already installed patches are removed from the "to_be_installed" list:
 for uuid in inst_patch_list:
     listremovedupe(uuid)
+## Request, where necessary, that patches in the Exclusions file are removed.
+if not exclusions == False:
+    for namelabel in exclusions:
+        listremoveexclude(namelabel)
 
 
 var = str(L)
@@ -369,6 +454,11 @@ if vara == "":
 
 print("The following Patches are pending installation:")
 print(vara)
+
+# If the user just wanted a list, quit now.
+if listonly == True:
+    sys.exit(0)
+
 reboot = 0
 for a in L:
     if str(a['after_apply_guidance']) == "restartHost":
@@ -376,33 +466,39 @@ for a in L:
 
 if reboot > 0:
     print("\nNOTE: Installation of these items will require a reboot!")
-    print("      You will be prompted to reboot at the end.")
-    print("")
+    if not autoreboot == True:
+        print("      You will be prompted to reboot at the end.")
+        print("")
+    time.sleep(2)
 
-ans = raw_input("\nWould you like to install these items? [y/n]: ")
-if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
-    print("Starting patching...")
-    PATCH = 1
-else:
-    print("You didn't want to patch...")
-    sys.exit(0)
+if not auto == True:
+    ans = raw_input("\nWould you like to install these items? [y/n]: ")
+    if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
+        print("Starting patching...")
+    else:
+        print("You didn't want to patch...")
+        sys.exit(0)
 
-if PATCH == 1:
-    for a in L:
-       uuid = str(a['uuid'])
-       patch_url = str(a['patch_url'])
-       name_label = str(a['name_label'])
-       file_name = str(download_patch(patch_url))
-       host_uuid = str(HOSTUUID)
-       apply_patch(name_label, uuid, file_name, host_uuid)
+for a in L:
+   uuid = str(a['uuid'])
+   patch_url = str(a['patch_url'])
+   name_label = str(a['name_label'])
+   file_name = str(download_patch(patch_url))
+   host_uuid = str(HOSTUUID)
+   apply_patch(name_label, uuid, file_name, host_uuid)
 
 if reboot > 0:
-    ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
-    if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
+    if not autoreboot == True:
+        ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
+        if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
+            print("Rebooting...")
+            os.system("reboot")
+
+        else:
+            print("OK, i'll let you reboot in your own time. Don't forget though!")
+    else:
         print("Rebooting...")
         os.system("reboot")
-    else:
-        print("OK, i'll let you reboot in your own time. Don't forget though!")
 else:
     print("Restarting XAPI Toolstack...")
     os.system("xe-toolstack-restart")
