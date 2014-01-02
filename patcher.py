@@ -188,7 +188,7 @@ def download_patch(patch_url):
 
     meta = u.info()
     file_size = int(meta.getheaders("Content-Length")[0])
-    print "Downloading: %s Bytes: %s" % (file_name, file_size)
+    print "Download Size: %s Bytes" % (file_size)
     
     file_size_dl = 0
     block_sz = 8192
