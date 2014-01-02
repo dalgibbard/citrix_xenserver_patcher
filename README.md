@@ -35,20 +35,21 @@ Alternatively, distribute using Puppet, or some other form of shininess. But the
 
 ```bash
 # ./patcher.py -h
-Usage: %s [-e /path/to/exclude_file] [-a] [-r] [-l]
+Usage: ./patcher.py [-e /path/to/exclude_file] [-a] [-r] [-l] [-v]
 
 -e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.
 -a                          => Enables auto-apply of patches - will NOT reboot host without below option.
 -r                          => Enables automatic reboot of Host on completion of patching without prompts.
 -l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.
-
+-v                          => Display Version and Exit.
 ```
 
 ## To-do:
-[ ] "-q|--quiet" option for no on-screen output. Exit codes will be very important therefore! (And the Documentation of..)
-[ ] Manual run gives list of outstanding patches with options; can pick any number of patches to apply (Might be nice for people on strict patching policies, but not essential atm)
-[ ] Ability to run script from local machine to patch a remote host...
-[ ] Test XenServer Pool patching functionality. [Currently UNTESTED]
+- [ ] Enable auto-loading of Exclusion files (from local or web - user defined.)
+- [ ] "-q|--quiet" option for no on-screen output. Exit codes will be very important therefore! (And the Documentation of..)
+- [ ] Manual run gives list of outstanding patches with options; can pick any number of patches to apply (Might be nice for people on strict patching policies, but not essential atm)
+- [ ] Ability to run script from local machine to patch a remote host...
+- [ ] Test XenServer Pool patching functionality. [Currently UNTESTED]
 
 
 
