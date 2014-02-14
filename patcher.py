@@ -233,7 +233,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     out = None
     err = None
     patch_upload_uuid = None
-    patch_upload_verify_cmd = str(xecli) + str(' patch-list hosts="" params=uuid uuid=') + str(uuid) + str(" --minimal")
+    patch_upload_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + ('" params=uuid uuid=') + str(uuid) + str(" --minimal")
     do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_upload_verify.communicate()
     if not ( err == None and out != None ):
@@ -401,7 +401,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(" host-list params=uuid --minimal")
+get_host_uuid_cmd = str(xecli) + str(" host-list hostname=`hostname -f` params=uuid --minimal")
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, shell=True)
 (out, err) = get_host_uuid.communicate()
 if err == None and out != None:
