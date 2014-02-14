@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = 1.1
+version = 1.2
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot if necessary.
