@@ -401,7 +401,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(" host-list hostname=`hostname -i` params=uuid --minimal")
+get_host_uuid_cmd = str(xecli) + str(" host-list address=`hostname -i` params=uuid --minimal")
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, shell=True)
 (out, err) = get_host_uuid.communicate()
 if err == None and out != None:
