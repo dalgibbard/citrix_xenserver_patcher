@@ -26,6 +26,7 @@ version = 1.2
 ### IMPORT MODULES
 import sys, re, subprocess, os, getopt, time
 from xml.dom import minidom
+from operator import itemgetter
 try:
     # Python v2
     from urllib2 import urlopen
@@ -401,7 +402,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(" host-list address=`hostname -i` params=uuid --minimal")
+get_host_uuid_cmd = str(xecli) + str(' host-list address=`ip addr show | awk /"scope global"/\'{print$2}\' | awk -F/ \'{print$1}\' | head -n1` params=uuid --minimal')
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, shell=True)
 (out, err) = get_host_uuid.communicate()
 if err == None and out != None:
