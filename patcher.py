@@ -109,7 +109,7 @@ for o, a in myopts:
         usage()
 
 ### FUNCTIONS START
-def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="None", url="None"):
+def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="0", url="None"):
     ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
     #### DEBUG
@@ -233,7 +233,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     out = None
     err = None
     patch_upload_uuid = None
-    patch_upload_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + ('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+    patch_upload_verify_cmd = str(xecli) + str(' patch-list hosts=') + str(host_uuid) + (' params=uuid uuid=') + str(uuid) + str(" --minimal")
     do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, shell=True)
     (out, err) = do_patch_upload_verify.communicate()
     if not ( err == None and out != None ):
@@ -435,6 +435,7 @@ else:
 #print("HOSTUUID: " + HOSTUUID)
 #print("Installed Patches: " + str(inst_patch_list))
 
+# Should probably clean this line to whatever actually works... :)
 if inst_patch_list == [] or inst_patch_list == "" or inst_patch_list == ['']:
     print("No local Patches are installed.")
 ## Request that already installed patches are removed from the "to_be_installed" list:
@@ -444,6 +445,10 @@ for uuid in inst_patch_list:
 if not exclusions == False:
     for namelabel in exclusions:
         listremoveexclude(namelabel)
+## Lastly, sort the data by timestamp (to get oldest patches installed first).
+sortedlist = sorted(L, key=itemgetter('timestamp'))
+# Reassign the sorted list back to the old variable, 'cos i liked that one better.
+L = sortedlist
 
 
 var = str(L)
