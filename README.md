@@ -15,8 +15,8 @@ If there is a particular feature (or bug!) you want sorted, please feel free to 
 * Get the XenServer Patcher Script- plus any exclusion files you need/want (or create your own!):
 
 ```
-wget -O patcher.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/patcher.py
-wget -O XS62_exclusions.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/XS62_exclusions.py
+wget --no-check-certificate -O patcher.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/patcher.py
+wget --no-check-certificate -O XS62_exclusions.py https://raw.github.com/dalgibbard/citrix_xenserver_patcher/master/XS62_exclusions.py
 chmod +x patcher.py
 ```
 
