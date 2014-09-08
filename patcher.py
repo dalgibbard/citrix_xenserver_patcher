@@ -113,9 +113,6 @@ for o, a in myopts:
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="0", url="None"):
     ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
-    #### DEBUG
-    #print("Printing dict:")
-    #print(dict)
     L.append(dict)
 
 def listremovedupe(uuid):
@@ -217,7 +214,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     err = None
     do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_unzip.communicate()
-    if not ( not err and out != None ):
+    if (err and out != None ):
         print("Error extracting compressed patchfile: " + str(file_name))
     os.remove(file_name)
     uncompfile = str(name_label) + str(".xsupdate")
@@ -229,6 +226,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     print("Internal Upload...")
     patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(uncompfile)
     do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    # On Python 2.4 check_* functions have not been yet implemented. Lets wait until Popen completes and read out the return code
     do_patch_upload.wait()
     (out, err) = do_patch_upload.communicate()
     # Upload may fail if file has previously already been uploaded but not applied
