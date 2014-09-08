@@ -24,7 +24,7 @@ version = 1.2
 #
 
 ### IMPORT MODULES
-import sys, re, subprocess, os, getopt, time
+import sys, re, subprocess, os, getopt, time, pprint
 from xml.dom import minidom
 from operator import itemgetter
 try:
@@ -113,9 +113,6 @@ for o, a in myopts:
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="0", url="None"):
     ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
-    #### DEBUG
-    #print("Printing dict:")
-    #print(dict)
     L.append(dict)
 
 def listremovedupe(uuid):
@@ -215,9 +212,9 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     ### Ready for patch extract
     out = None
     err = None
-    do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, shell=True)
+    do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_unzip.communicate()
-    if not ( err == None and out != None ):
+    if (err and out != None ):
         print("Error extracting compressed patchfile: " + str(file_name))
     os.remove(file_name)
     uncompfile = str(name_label) + str(".xsupdate")
@@ -228,34 +225,63 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     # Internal upload to XS patcher
     print("Internal Upload...")
     patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(uncompfile)
-    do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, shell=True)
+    do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    # On Python 2.4 check_* functions have not been yet implemented. Lets wait until Popen completes and read out the return code
+    do_patch_upload.wait()
     (out, err) = do_patch_upload.communicate()
-    # Ignore output; we'll verify in a second.
-    out = None
-    err = None
-    patch_upload_uuid = None
-    patch_upload_verify_cmd = str(xecli) + str(' patch-list hosts=') + str(host_uuid) + (' params=uuid uuid=') + str(uuid) + str(" --minimal")
-    do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, shell=True)
-    (out, err) = do_patch_upload_verify.communicate()
-    if not ( err == None and out != None ):
-        print("Failed to validate the uploaded patch: " + str(uncompfile))
-        sys.exit(17)
-    patch_upload_uuid_utf8 = out.decode("utf8")
-    patch_upload_uuid = str(patch_upload_uuid_utf8.replace('\n', ''))
-    if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
-        print("Patch internal upload failed for: " + str(uncompfile))
-        sys.exit(16)
-    print("Applying Patch...")
+    # Upload may fail if file has previously already been uploaded but not applied
+    if (err):
+        print("XE Error detected: " + err)
+        print("Return code is: " + str(do_patch_upload.returncode))
+        error_block = err.split('\n')
+        if (do_patch_upload.returncode == 1 and error_block[0] == "The uploaded patch file already exists"):
+            print("Patch previously uploaded, attempting to reapply " + str(uuid))
+            uuid = error_block[1]
+        else:        
+            print("New error detected, aborting")
+            sys.exit(123)
+    else:
+        # Second verification.
+        out = None
+        err = None
+        patch_upload_uuid = None
+        #Do not pass hostuuid here as the patch has not been applied yet and the patch-list for SRO will come back empty
+        patch_upload_verify_cmd = str(xecli) + str(' patch-list params=uuid uuid=') + str(uuid) + str(" --minimal")
+        do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        (out, err) = do_patch_upload_verify.communicate()
+    
+        if (err):
+            print("Failed to validate the uploaded patch: " + str(uncompfile) + "\nError: " + str(err))
+            sys.exit(17)
+        else:
+            print("Completed: " + str(out))
+
+        patch_upload_uuid_utf8 = out.decode("utf8")
+        patch_upload_uuid = str(patch_upload_uuid_utf8.replace('\n', ''))
+        patch_upload_uuid.rstrip('\r\n')
+        if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
+            print("Patch internal upload failed for: " + str(uncompfile))
+            print("patch_upload_uuid = " + str(patch_upload_uuid))
+            print("uuid = " + str(uuid))
+            print("out = " + str(out))
+            sys.exit(16)
+    
+    print("Applying Patch " + str(uuid))
     patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
-    do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, shell=True)
+    do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply.communicate()
-    # Ignore output, we'll verify in a second.
+    if (err):
+        print("Patch failed, code: " + str(do_patch_apply.returncode))
+        print("Command failed: " + patch_apply_cmd)
+        print("Failed to apply patch: " + str(err))
+        print("Secondary check...")
+
     out = None
     err = None
     patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
-    do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, shell=True)
+    do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply_verify.communicate()
-    if not ( err == None and out != None ):
+    if (err):
         print("Failed to validate installed patch: " + str(uncompfile))
         sys.exit(18)
     patch_apply_uuid_utf8 = out.decode("utf8")
@@ -403,11 +429,13 @@ if L == []:
 out = None
 err = None
 get_host_uuid_cmd = str(xecli) + str(' host-list address=`ip addr show | awk /"scope global"/\'{print$2}\' | awk -F/ \'{print$1}\' | head -n1` params=uuid --minimal')
-get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, shell=True)
+get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+print("Getting host list using: " + get_host_uuid_cmd)
 (out, err) = get_host_uuid.communicate()
-if err == None and out != None:
+if not err and out != None:
     HOSTUUID_utf8 = out.decode("utf8")
     HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
+    print("Detected HOST UUID: " + HOSTUUID)
 else:
     print("Failed to get HostUUID from XE")
     sys.exit(7)
@@ -421,10 +449,11 @@ inst_patch_list = []
 
 out = None
 err = None
-get_inst_patch_cmd = str(xecli) + str(" patch-list hosts=") + str(HOSTUUID) + str(" --minimal")
-get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, shell=True)
+get_inst_patch_cmd = str(xecli) + str(' patch-list hosts="') + str(HOSTUUID) + str('" --minimal')
+get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+print("Get patch list using: " + get_inst_patch_cmd)
 (out, err) = get_inst_patch.communicate()
-if err == None and out != None:
+if not err and out != None:
     inst_patch_utf8 = out.decode("utf8")
     inst_patch_str = str(inst_patch_utf8.replace('\n', ''))
     inst_patch_list = inst_patch_str.split(",")
