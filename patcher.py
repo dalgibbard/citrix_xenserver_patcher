@@ -194,7 +194,7 @@ def download_patch(patch_url):
     if long(doublesize) > long(freebytes):
         print(str("Insufficient storage space for Patch ") + str(file_name))
         print(str("Please free up some space, and run the patcher again."))
-        print()
+        print("")
         print(str("Minimum space required: ") + str(doublesize))
         sys.exit(20)
 
@@ -536,13 +536,13 @@ if (err):
     if not "No matching VMs found" in str(err):
         print(str("Failed to check for mounted CD Images- Error: ") + str(err))
         sys.exit(110)
-if not out == None:
+if not out == "":
     print("CD images are currently mounted to one or more VMs.")
     print("These must be unmounted before starting the patching process.")
     if auto == False:
         cd_ans = raw_input("\nWould you like to auto-umount these now? [y/n]: ")
         if str(cd_ans) == "y" or not str(cd_ans) == "yes" or str(cd_ans) == "Yes" or str(cd_ans) == "Y" or str(cd_ans) == "YES":
-            print()
+            print("")
         else:
             print("Please unmount manually before proceeding with patching.")
             sys.exit(111)
@@ -555,6 +555,7 @@ if not out == None:
     (out, err) = do_cd_unmount.communicate()
     if (err):
         print("An error occured when attempting to unmount the CD Images.")
+        print(str("Error is: ") + str(err))
         print("Please manually unmount, and run the patcher again.")
         sys.exit(112)
 
