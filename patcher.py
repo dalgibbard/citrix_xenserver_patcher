@@ -437,7 +437,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str('for ip in `ip addr show | awk /"scope global"/\'{print$2}\' | awk -F/ \'{print$1}\'`; do uuid="`') + str(xecli) + str(' host-list address=$ip params=uuid --minimal | head -n1` $uuid"; done; echo $uuid | awk \'{print$1}\'')
+get_host_uuid_cmd = str(xecli) + str(' host-list name-lable=`cat /etc/hostname` params=uuid --minimal`')
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 print("Getting host list using: " + get_host_uuid_cmd)
 (out, err) = get_host_uuid.communicate()
