@@ -190,9 +190,12 @@ def download_patch(patch_url):
     # Check available disk space
     s = os.statvfs('.')
     freebytes = s.f_bsize * s.f_bavail
-    if long(file_size) > long(freebytes):
+    doublesize = file_size * 2
+    if long(doublesize) > long(freebytes):
         print(str("Insufficient storage space for Patch ") + str(file_name))
         print(str("Please free up some space, and run the patcher again."))
+        print()
+        print(str("Minimum space required: ") + str(doublesize))
         sys.exit(20)
 
     print "Download Size: %s Bytes" % (file_size)
@@ -437,7 +440,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`cat /etc/hostname` params=uuid --minimal`')
+get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`cat /etc/hostname | head -n 1` params=uuid --minimal')
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 print("Getting host list using: " + get_host_uuid_cmd)
 (out, err) = get_host_uuid.communicate()
