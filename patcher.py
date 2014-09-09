@@ -533,7 +533,7 @@ cd_check_cmd = str(xecli) + str(' vm-cd-list --multiple')
 do_cd_check = subprocess.Popen([cd_check_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 (out, err) = do_cd_check.communicate()
 if (err):
-    if not str(err) =~ "No matching VMs found":
+    if not "No matching VMs found" in str(err):
         print(str("Failed to check for mounted CD Images- Error: ") + str(err))
         sys.exit(110)
 if not out == None:
