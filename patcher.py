@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = 1.2
+version = 1.3
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot if necessary.
@@ -18,9 +18,9 @@ version = 1.2
 # tested against Python2.7 and 3.2 where possible for future compatibility.
 #
 # LICENSE:
-# No real license here... Do whatever. I'd appreciate it if you fork this code and commit back
-# with any good updates though :) It's been pretty hacked together for now, so any code cleanups
-# in particular are most welcome!
+# This code is goverened by The WTFPL (Do What the F**k You Want to Public License).
+# Do whatever you like, but I would of course appreciate it if you fork this code and commit back
+# with any good updates though :)
 #
 
 ### IMPORT MODULES
@@ -428,7 +428,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(' host-list address=`ip addr show | awk /"scope global"/\'{print$2}\' | awk -F/ \'{print$1}\' | head -n1` params=uuid --minimal')
+get_host_uuid_cmd = str('for ip in `ip addr show | awk /"scope global"/\'{print$2}\' | awk -F/ \'{print$1}\'`; do uuid="`') + str(xecli) + str(' host-list address=$ip params=uuid --minimal | head -n1` $uuid"; done; echo $uuid | awk \'{print$1}\'')
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 print("Getting host list using: " + get_host_uuid_cmd)
 (out, err) = get_host_uuid.communicate()
