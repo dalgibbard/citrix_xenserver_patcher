@@ -539,7 +539,7 @@ if (err):
 if not out == None:
     print("CD images are currently mounted to one or more VMs.")
     print("These must be unmounted before starting the patching process.")
-    if auto = False:
+    if auto == False:
         cd_ans = raw_input("\nWould you like to auto-umount these now? [y/n]: ")
         if str(cd_ans) == "y" or not str(cd_ans) == "yes" or str(cd_ans) == "Yes" or str(cd_ans) == "Y" or str(cd_ans) == "YES":
             print()
