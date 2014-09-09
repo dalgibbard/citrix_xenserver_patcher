@@ -544,7 +544,7 @@ if not out == None:
         if str(cd_ans) == "y" or not str(cd_ans) == "yes" or str(cd_ans) == "Yes" or str(cd_ans) == "Y" or str(cd_ans) == "YES":
             print()
         else:
-            print("Please unmount manually before proceeding with patching."
+            print("Please unmount manually before proceeding with patching.")
             sys.exit(111)
 
     print("Unmounting CD Images from VMs")
