@@ -194,7 +194,7 @@ def download_patch(patch_url):
     if long(doublesize) > long(freebytes):
         print(str("Insufficient storage space for Patch ") + str(file_name))
         print(str("Please free up some space, and run the patcher again."))
-        print()
+        print("")
         print(str("Minimum space required: ") + str(doublesize))
         sys.exit(20)
 
@@ -525,6 +525,39 @@ if not auto == True:
     else:
         print("You didn't want to patch...")
         sys.exit(0)
+
+## Check for mounted CDROMs and request unmount:
+out = None
+err = None
+cd_check_cmd = str(xecli) + str(' vm-cd-list --multiple')
+do_cd_check = subprocess.Popen([cd_check_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+(out, err) = do_cd_check.communicate()
+if (err):
+    if not "No matching VMs found" in str(err):
+        print(str("Failed to check for mounted CD Images- Error: ") + str(err))
+        sys.exit(110)
+if not out == "":
+    print("CD images are currently mounted to one or more VMs.")
+    print("These must be unmounted before starting the patching process.")
+    if auto == False:
+        cd_ans = raw_input("\nWould you like to auto-umount these now? [y/n]: ")
+        if str(cd_ans) == "y" or not str(cd_ans) == "yes" or str(cd_ans) == "Yes" or str(cd_ans) == "Y" or str(cd_ans) == "YES":
+            print("")
+        else:
+            print("Please unmount manually before proceeding with patching.")
+            sys.exit(111)
+
+    print("Unmounting CD Images from VMs")
+    out = None
+    err = None
+    cd_unmount_cmd = str(xecli) + str(' vm-cd-eject --multiple')
+    do_cd_unmount = subprocess.Popen([cd_unmount_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    (out, err) = do_cd_unmount.communicate()
+    if (err):
+        print("An error occured when attempting to unmount the CD Images.")
+        print(str("Error is: ") + str(err))
+        print("Please manually unmount, and run the patcher again.")
+        sys.exit(112)
 
 for a in L:
    uuid = str(a['uuid'])
