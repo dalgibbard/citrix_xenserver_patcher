@@ -440,7 +440,7 @@ if L == []:
 
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`cat /etc/hostname | head -n 1` params=uuid --minimal')
+get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`grep "^HOSTNAME=" /etc/sysconfig/network | awk -F= \'{print$2}\'` params=uuid --minimal')
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 print("Getting host list using: " + get_host_uuid_cmd)
 (out, err) = get_host_uuid.communicate()
@@ -533,7 +533,7 @@ cd_check_cmd = str(xecli) + str(' vm-cd-list --multiple')
 do_cd_check = subprocess.Popen([cd_check_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 (out, err) = do_cd_check.communicate()
 if (err):
-    if not str(err) == str("Error: No matching VMs found"):
+    if not str(err) =~ "No matching VMs found":
         print(str("Failed to check for mounted CD Images- Error: ") + str(err))
         sys.exit(110)
 if not out == None:
