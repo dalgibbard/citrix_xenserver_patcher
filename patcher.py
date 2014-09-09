@@ -186,6 +186,15 @@ def download_patch(patch_url):
 
     meta = u.info()
     file_size = int(meta.getheaders("Content-Length")[0])
+
+    # Check available disk space
+    s = os.statvfs(f)
+    freebytes = s.f_bsize * s.f_bavail
+    if file_size > freebytes:
+        print(str("Insufficient storage space for Patch ") + str(file_name))
+        print(str("Please free up some space, and run the patcher again."))
+        sys.exit(20)
+
     print "Download Size: %s Bytes" % (file_size)
     
     file_size_dl = 0
