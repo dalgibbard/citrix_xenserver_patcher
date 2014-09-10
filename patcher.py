@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = 1.3
+version = 1.31
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot if necessary.
@@ -24,7 +24,7 @@ version = 1.3
 #
 
 ### IMPORT MODULES
-import sys, re, subprocess, os, getopt, time, pprint
+import sys, re, subprocess, os, getopt, time, pprint, signal
 from xml.dom import minidom
 from operator import itemgetter
 try:
@@ -33,6 +33,15 @@ try:
 except ImportError:
     # Python v3
     from urllib.request import urlopen
+
+
+### Capture Ctrl+C Presses
+def signal_handler(signal, frame):
+    print("Quitting.\n")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
 
 ### USER VARS
 # Where we can find the XML page of available updates from Citrix
@@ -248,7 +257,6 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
         error_block = err.split('\n')
         if (do_patch_upload.returncode == 1 and error_block[0] == "The uploaded patch file already exists"):
             print("Patch previously uploaded, attempting to reapply " + str(uuid))
-            uuid = error_block[1]
         else:        
             print("New error detected, aborting")
             sys.exit(123)
@@ -521,7 +529,7 @@ if reboot > 0:
 if not auto == True:
     ans = raw_input("\nWould you like to install these items? [y/n]: ")
     if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
-        print("Starting patching...")
+        print("")
     else:
         print("You didn't want to patch...")
         sys.exit(0)
@@ -547,7 +555,7 @@ if not out == "":
             print("Please unmount manually before proceeding with patching.")
             sys.exit(111)
 
-    print("Unmounting CD Images from VMs")
+    print("Unmounting CD Images from VMs\n")
     out = None
     err = None
     cd_unmount_cmd = str(xecli) + str(' vm-cd-eject --multiple')
@@ -559,6 +567,7 @@ if not out == "":
         print("Please manually unmount, and run the patcher again.")
         sys.exit(112)
 
+print("Starting patching...")
 for a in L:
    uuid = str(a['uuid'])
    patch_url = str(a['patch_url'])
