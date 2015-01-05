@@ -319,7 +319,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     out = None
     err = None
     if pool == True:
-        patch_apply_verify_cmd = str(xecli) + str(' patch-list ') + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+        patch_apply_verify_cmd = str(xecli) + str(' patch-list ') + str(' params=uuid uuid=') + str(uuid) + str(" --minimal")
     else:
         patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
 
