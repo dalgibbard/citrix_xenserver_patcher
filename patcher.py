@@ -47,7 +47,7 @@ def is_master():
     xensource = '/etc/xensource/pool.conf'
     f = open(xensource, 'r')
     if f.read() == 'master':
-    return True
+        return True
     return False
 
 ### USER VARS
@@ -99,7 +99,7 @@ for o, a in myopts:
         if not os.path.exists(exclude_file):
             print("Failed to locate requested excludes file: " + exclude_file)
             sys.exit(1)
-    try:
+        try:
             execfile(exclude_file)
         except Exception:
             print("An error occured whilst loading the exclude file: " + exclude_file)
@@ -108,11 +108,11 @@ for o, a in myopts:
             print("No exclusions found in the loaded exceptions file...")
             sys.exit(1)
     elif o == '-p':
-    if is_master():
-        pool = True
-    else:
-        print("The option -p must be used on a pool master.")
-        sys.exit(1)
+        if is_master():
+            pool = True
+        else:
+            print("The option -p must be used on a pool master.")
+            sys.exit(1)
     elif o == '-a':
         auto = True
         if listonly == True:
@@ -304,9 +304,9 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
 
     print("Applying Patch " + str(uuid))
     if pool == True:
-    patch_apply_cmd = str(xecli) + str(" patch-pool-apply uuid=") + str(uuid)
+        patch_apply_cmd = str(xecli) + str(" patch-pool-apply uuid=") + str(uuid)
     else:
-    patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
+        patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
     print(str(patch_apply_cmd))
     do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply.communicate()
