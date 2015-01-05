@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = 1.31
+version = 1.32
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot if necessary.
@@ -42,6 +42,13 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
+### Check if the host is the PoolMaster
+def is_master():
+    xensource = '/etc/xensource/pool.conf'
+    f = open(xensource, 'r')
+    if f.read() == 'master':
+    return True
+    return False
 
 ### USER VARS
 # Where we can find the XML page of available updates from Citrix
@@ -61,12 +68,15 @@ auto = False
 autoreboot = False
 # Define "listonly" as False by Default -- when true, list patches needed, but quit straight after. [opt: -l ]
 listonly = False
+# Define "pool" as False by Default -- when true, patches are applied to a pool
+pool = False
 
 ## Define usage text
 def usage():
     print("Usage: %s [-e /path/to/exclude_file] [-a] [-r] [-l] [-v]" % sys.argv[0])
     print("")
     print("-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.")
+    print("-p                          => Apply Patches to the whole Pool. It must be done on the Pool Master.")
     print("-a                          => Enables auto-apply of patches - will NOT reboot host without below option.")
     print("-r                          => Enables automatic reboot of Host on completion of patching without prompts.")
     print("-l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.")
@@ -76,7 +86,7 @@ def usage():
 
 # Parse Args:
 try:
-    myopts, args = getopt.getopt(sys.argv[1:],"ve:alr")
+    myopts, args = getopt.getopt(sys.argv[1:],"vpe:alr")
 except getopt.GetoptError:
     usage()
 
@@ -89,7 +99,7 @@ for o, a in myopts:
         if not os.path.exists(exclude_file):
             print("Failed to locate requested excludes file: " + exclude_file)
             sys.exit(1)
-	try:
+    try:
             execfile(exclude_file)
         except Exception:
             print("An error occured whilst loading the exclude file: " + exclude_file)
@@ -97,6 +107,12 @@ for o, a in myopts:
         if exclusions == False:
             print("No exclusions found in the loaded exceptions file...")
             sys.exit(1)
+    elif o == '-p':
+    if is_master():
+        pool = True
+    else:
+        print("The option -p must be used on a pool master.")
+        sys.exit(1)
     elif o == '-a':
         auto = True
         if listonly == True:
@@ -285,9 +301,13 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
             print("uuid = " + str(uuid))
             print("out = " + str(out))
             sys.exit(16)
-    
+
     print("Applying Patch " + str(uuid))
+    if pool == True:
+    patch_apply_cmd = str(xecli) + str(" patch-pool-apply uuid=") + str(uuid)
+    else:
     patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
+    print(str(patch_apply_cmd))
     do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply.communicate()
     if (err):
@@ -298,7 +318,11 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
 
     out = None
     err = None
-    patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+    if pool == True:
+        patch_apply_verify_cmd = str(xecli) + str(' patch-list ') + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+    else:
+        patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+
     do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply_verify.communicate()
     if (err):
@@ -469,7 +493,10 @@ inst_patch_list = []
 
 out = None
 err = None
-get_inst_patch_cmd = str(xecli) + str(' patch-list hosts="') + str(HOSTUUID) + str('" --minimal')
+if pool == True:
+    get_inst_patch_cmd = str(xecli) + str(' patch-list ') + str(' --minimal')
+else:
+    get_inst_patch_cmd = str(xecli) + str(' patch-list hosts="') + str(HOSTUUID) + str('" --minimal')
 get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 print("Get patch list using: " + get_inst_patch_cmd)
 (out, err) = get_inst_patch.communicate()
