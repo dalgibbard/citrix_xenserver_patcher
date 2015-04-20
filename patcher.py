@@ -321,7 +321,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     if pool == True:
         patch_apply_verify_cmd = str(xecli) + str(' patch-list ') + str(' params=uuid uuid=') + str(uuid) + str(" --minimal")
     else:
-        patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+        patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts:contains="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
 
     do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply_verify.communicate()
@@ -496,7 +496,7 @@ err = None
 if pool == True:
     get_inst_patch_cmd = str(xecli) + str(' patch-list ') + str(' --minimal')
 else:
-    get_inst_patch_cmd = str(xecli) + str(' patch-list hosts="') + str(HOSTUUID) + str('" --minimal')
+    get_inst_patch_cmd = str(xecli) + str(' patch-list hosts:contains="') + str(HOSTUUID) + str('" --minimal')
 get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 print("Get patch list using: " + get_inst_patch_cmd)
 (out, err) = get_inst_patch.communicate()
