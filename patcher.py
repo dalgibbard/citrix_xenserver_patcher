@@ -1,29 +1,32 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = 1.32
+version = 1.4
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
-#    to reboot if necessary.
+#    to reboot/restart the XE ToolStack if necessary.
 #
 # Written by: Darren Gibbard
 # URL:        http://dgunix.com
 # Github:     http://github.com/dalgibbard/citrix_xenserver_patcher
 #
-# To Do: 
-#   * Improve code layout
-#   * Increase code comments to help others understand WTF is going on.
 #
-# Written for Python 2.4 which is present in current XenServer 6.1/6.2+ Builds, but also
+# Written for Python 2.4 which is present in current XenServer 6.1/6.2+ Builds, but also somewhat
 # tested against Python2.7 and 3.2 where possible for future compatibility.
 #
 # LICENSE:
-# This code is goverened by The WTFPL (Do What the F**k You Want to Public License).
+# This code is governed by The WTFPL (Do What the F**k You Want to Public License).
 # Do whatever you like, but I would of course appreciate it if you fork this code and commit back
 # with any good updates though :)
 #
+# DISCLAIMER:
+# Both myself and this code are in no way affiliated with Citrix. This code is not supported by Citrix in any way.
+# Use of the code within this project is without warranty, and neither myself, the company I work for, nor other contributors of this project are to blame for any issues which may arise, and therefore cannot be held accountable.
+# Any use of this code is done so at your own risk.
 
-### IMPORT MODULES
+############################
+### IMPORT MODULES START ###
+############################
 import sys, re, subprocess, os, getopt, time, pprint, signal
 from xml.dom import minidom
 from operator import itemgetter
@@ -33,8 +36,13 @@ try:
 except ImportError:
     # Python v3
     from urllib.request import urlopen
+############################
+### IMPORT MODULES END ###
+############################
 
-
+###############################
+### INITIAL FUNCTIONS START ###
+###############################
 ### Capture Ctrl+C Presses
 def signal_handler(signal, frame):
     print("Quitting.\n")
@@ -49,19 +57,35 @@ def is_master():
     if f.read() == 'master':
         return True
     return False
+#############################
+### INITIAL FUNCTIONS END ###
+#############################
 
-### USER VARS
+############################
+### USER VARIABLES START ###
+############################
 # Where we can find the XML page of available updates from Citrix
 patchxmlurl = 'http://updates.xensource.com/XenServer/updates.xml'
+# Where we can find auto-exclude files on the internet - filename expected is either:
+## "XS${majver}${minver}${subver}_exclusions.py"   - ie. "XS621_excludes.py" for XenServer 6.2.1
+## "XS${majver}${minver}_exclusions.py"            - ie. "XS62_excludes.py" for XenServer 6.2.1 (if the above doesn't exist) OR XenServer 6.2
+#autourl = 'https://raw.githubusercontent.com/dalgibbard/citrix_xenserver_patcher/master/exclusions'
+autourl = 'http://fingaz.info/exclusions'
 # Where we can store some temporary data
 tmpfile = '/var/tmp/xml.tmp'
+##########################
+### USER VARIABLES END ###
+##########################
 
-### INITIAL VARS
+########################################
+### SYSTEM / INITIAL VARIABLES START ###
+########################################
 # Setup empty List for later
 L = []
 # Specify empty excludes file -- when specified, this is a list of patches to IGNORE [opt: -e FILENAME ]
 exclude_file = False
 exclusions = False
+autoexclusions = False
 # Define "auto" as False by default -- when true, apply patches without question. [opt: -a ]
 auto = False
 # Define "reboot" as False by default. -- when true, if patches installed require host reboot, this will be done automatically!
@@ -70,57 +94,90 @@ autoreboot = False
 listonly = False
 # Define "pool" as False by Default -- when true, patches are applied to a pool
 pool = False
+# Enable loading of the Auto-Excludes list from github.
+autoExclude = True
+# A var used during the patch apply stage, when it gets set to non-zero if a patch recommends a reboot.
+reboot = 0
+# Disable debug by default
+debug = False
+# Clean out installed patches by default
+clean = True
+######################################
+### SYSTEM / INITIAL VARIABLES END ###
+######################################
 
+#######################################
+### USAGE + ARGUMENT HANDLING START ###
+#######################################
 ## Define usage text
 def usage():
-    print("Usage: %s [-e /path/to/exclude_file] [-a] [-r] [-l] [-v]" % sys.argv[0])
+    print("Usage: %s [-e /path/to/exclude_file] [-E] [-p] [-a] [-r] [-l] [-v] [-D]" % sys.argv[0])
     print("")
     print("-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.")
-    print("-p                          => Apply Patches to the whole Pool. It must be done on the Pool Master.")
+    print("-E                          => *Disable* the loading of auto-exclusions list from Github")
+    print("-p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.")
     print("-a                          => Enables auto-apply of patches - will NOT reboot host without below option.")
     print("-r                          => Enables automatic reboot of Host on completion of patching without prompts.")
     print("-l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.")
+    print("-D                          => Enable DEBUG output")
+    print("-C                          => *Disable* the automatic cleaning of patches on success.")
     print("-v                          => Display Version and Exit.")
     sys.exit(1)
 
 
 # Parse Args:
 try:
-    myopts, args = getopt.getopt(sys.argv[1:],"vpe:alr")
+    myopts, args = getopt.getopt(sys.argv[1:],"vpe:EalrDC")
 except getopt.GetoptError:
     usage()
 
 for o, a in myopts:
     if o == '-v':
+        # Version print and Quit.
         print("Citrix_XenServer_Patcher_Version: " + str(version))
         sys.exit(0)
     elif o == '-e':
+        # Set the exclusion file
         exclude_file = str(a)
+        # Check the file exists
         if not os.path.exists(exclude_file):
+            # If it doesn't exist, Error and quit.
             print("Failed to locate requested excludes file: " + exclude_file)
             sys.exit(1)
+        # Our exclusions list is raw python, so try running it.
         try:
             execfile(exclude_file)
+        # If running it fails, it's not valid python
         except Exception:
             print("An error occured whilst loading the exclude file: " + exclude_file)
             sys.exit(1)
+        # Check that the Python we just ran actually contains some valid exclusions!
         if exclusions == False:
             print("No exclusions found in the loaded exceptions file...")
             sys.exit(1)
     elif o == '-p':
+        # With 'pool-mode' enabled, check if we're the Master node.
         if is_master():
             pool = True
+        # If we're not the Pool Master, Error and quit.
         else:
             print("The option -p must be used on a pool master.")
             sys.exit(1)
+    elif o == '-E':
+        # Disable Auto-Exclusions list
+        autoExclude = False
     elif o == '-a':
+        # Set Auto-mode to enabled. This will hide user prompts.
         auto = True
+        # Check that 'listonly' hasn't been set also, as this is an invalid combination.
         if listonly == True:
             print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
             print("")
             usage()
     elif o == '-r':
+        # Set auto-reboot to enabled.
         autoreboot = True
+        # Check that 'listonly' hasn't been set also, as this is an invalid combination.
         if listonly == True:
             print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
             print("")
@@ -131,13 +188,27 @@ for o, a in myopts:
             print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
             print("")
             usage()
+    elif o == '-C':
+        clean = False
+    elif o == '-D':
+	    debug = True
     else:
         usage()
+#####################################
+### USAGE + ARGUMENT HANDLING END ###
+#####################################
 
-### FUNCTIONS START
+if debug == True:
+    print("Citrix_XenServer_Patcher_Version: " + str(version))
+
+##############################
+### SCRIPT FUNCTIONS START ###
+##############################
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="0", url="None"):
     ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
+    if debug == True:
+	    print("Adding patch to list: " + str(dict))
     L.append(dict)
 
 def listremovedupe(uuid):
@@ -195,6 +266,7 @@ def which(program):
 def download_patch(patch_url):
     url = patch_url
     file_name = url.split('/')[-1]
+    print("")
     print("Downloading: " + str(file_name))
     try:
         u = urlopen(url)
@@ -253,7 +325,8 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     (out, err) = do_patch_unzip.communicate()
     if (err and out != None ):
         print("Error extracting compressed patchfile: " + str(file_name))
-    os.remove(file_name)
+    if clean == True:
+        os.remove(file_name)
     uncompfile = str(name_label) + str(".xsupdate")
     # Check {name_label}.xsupdate exists
     if not os.path.isfile(uncompfile):
@@ -307,14 +380,15 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
         patch_apply_cmd = str(xecli) + str(" patch-pool-apply uuid=") + str(uuid)
     else:
         patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
-    print(str(patch_apply_cmd))
+    if debug == True:
+        print(str(patch_apply_cmd))
     do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply.communicate()
     if (err):
         print("Patch failed, code: " + str(do_patch_apply.returncode))
         print("Command failed: " + patch_apply_cmd)
         print("Failed to apply patch: " + str(err))
-        print("Secondary check...")
+        print("Secondary validation check...")
 
     out = None
     err = None
@@ -333,9 +407,140 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     if not ( patch_apply_uuid != None and patch_apply_uuid == uuid ):
         print("Patch apply failed for: " + str(uncompfile))
         sys.exit(19)
-    os.remove(uncompfile)
+        
+    ## Cleanup
+    if clean == True:
+        if debug == True:
+            print("Deleting file: " + uncompfile)
+        try:
+            os.remove(uncompfile)
+        except OSError:
+            print("Couldn't find file: " + uncompfile + " - Won't remove it.")
+                    
+        srcpkg_name = name_label + "-src-pkgs.tar.bz2"
+        if debug == True:
+            print("Deleting file: " + srcpkg_name)
+        try:
+            os.remove(srcpkg_name)
+        except OSError:
+            print("Couldn't find file: " + srcpkg_name + " - Won't remove it.")
 
-### CODE START
+        # Cleanup the /var/patch/ stuff using the XE Cli
+        out = None
+        err = None
+        clean_var_cmd = str(xecli) + str(' patch-clean uuid=' + uuid)
+        clean_var = subprocess.Popen([clean_var_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        if debug == True:
+            print("Running clean for Patch UUID " + uuid)
+        (out, err) = clean_var.communicate()
+        if not err:
+            print("Cleaned patch data for UUID: " + uuid + "\n")
+        else:
+            print("Error encountered cleaning patch data for UUID: " + uuid)
+            print("Error was: " + err + "\n")
+
+    
+## Function to pull Auto-Excludes file    
+def getAutoExcludeList(autourl):
+    # Build the full file URL:
+    autourlfull = autourl + "/XS" + xsver + "_excludes.py"
+            
+    ### Start XML Grab + Parse
+    try:
+        # Get XML
+        autoexclude_data = urlopen(autourlfull)
+    except Exception, err:
+        if not subver == "":
+            print("Failed to locate Auto Exclusions file: XS" + xsver + "_excludes.py" )
+            print("Checking for presence of Parent version file: XS" + majver + minver + "_excludes.py  ...")
+            try:
+                autourlfull = autourl + "/XS" + majver + minver + "_excludes.py"
+                # Get XML
+                autoexclude_data = urlopen(autourlfull)
+            except Exception, err:
+                # Handle Errors
+                print("\nFailed to read Auto-Exclusion List from: " + autourlfull)
+                print("Check the URL is available, and connectivity is OK.")
+                print("")
+                print("Error: " + str(err))
+                print("")
+                print('NOTE: To proceed without downloading the Auto-Excludes file (not recommended), pass the "-E" flag.')
+                sys.exit(1)
+        else:
+            # Handle Errors
+            print("\nFailed to read Auto-Exclusion List from: " + autourlfull)
+            print("Check the URL is available, and connectivity is OK.")
+            print("")
+            print("Error: " + str(err))
+            print("")
+            print('NOTE: To proceed without downloading the Auto-Excludes file (not recommended), pass the "-E" flag.')
+            sys.exit(1)
+
+    # Set "autoexclude" to readable/printable page content.
+    autoexclude = autoexclude_data.read()
+    
+    # Our exclusions list is raw python, so try running it.
+    try:
+        exec autoexclude
+    # If running it fails, it's not valid python
+    except Exception:
+        print("An error occurred whilst loading the auto-exclude file from " + autourlfull)
+        sys.exit(1)
+    # Check that the Python we just ran actually contains some valid exclusions!
+    if autoexclusions == False:
+        print("No auto-exclusions found in the loaded exceptions file...")
+        sys.exit(1)
+    else:
+	    return autoexclusions
+            
+# Function to test that the xe utility is operational (#21)
+def xetest():
+    out = None
+    err = None
+    test_xe_cmd = str(xecli) + str(' host-list')
+    test_xe = subprocess.Popen([test_xe_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if debug == True:
+        print("Testing XE CLI function using: " + test_xe_cmd)
+    (out, err) = test_xe.communicate()
+    if not err and out != None:
+        return True
+    else:
+        return False
+    
+# Function for restarting XE Toolstack
+def xetoolstack_restart():
+    out = None
+    err = None
+    xe_restart_cmd = str(xecli) + str('-toolstack-restart')
+    xe_restart = subprocess.Popen([xe_restart_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if debug == True:
+        print("Restarting the XE Toolstack using: " + xe_restart_cmd)
+    (out, err) = xe_restart.communicate()
+    if not err and out != None:
+        return True
+    else:
+        return False
+
+# Define a function for unmounting all CDs
+def unmount_cd():
+    print("Unmounting CD Images from VMs\n")
+    out = None
+    err = None
+    cd_unmount_cmd = str(xecli) + str(' vm-cd-eject --multiple')
+    do_cd_unmount = subprocess.Popen([cd_unmount_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    (out, err) = do_cd_unmount.communicate()
+    if (err):
+        print("An error occured when attempting to unmount the CD Images.")
+        print(str("Error is: ") + str(err))
+        print("Please manually unmount, and run the patcher again.")
+        sys.exit(112)            
+############################
+### SCRIPT FUNCTIONS END ###
+############################
+
+#######################    
+### MAIN CODE START ###
+#######################
 # Validate that we're running XenServer
 relver = '/etc/redhat-release'
 xs = False
@@ -352,6 +557,7 @@ except IOError:
         pass
     sys.exit(11)
 
+# Read the relver contents, and split into variables for the XenServer version.
 try:
     filedata = str(f.read().replace('\n', ''))
     file_list = filedata.split()
@@ -362,9 +568,11 @@ try:
         fullver = file_list[2]
         shortver = fullver.split("-")[0]
         if len(shortver.split('.')) > 2:
+            # Provide 'xsver' for versions consisting of two and three segments. (eg: 6.2 vs 6.2.1)
             if shortver.split('.')[2] == "0":
                 majver = shortver.split('.')[0]
                 minver = shortver.split('.')[1]
+		subver = ""
                 xsver = str(majver) + str(minver)
             else:
                 majver = shortver.split('.')[0]
@@ -374,21 +582,48 @@ try:
 finally:
     f.close()
 
+# Check that relver listed 'XenServer' in it's contents.
 if xs == False:
     print("Failed to identify this host as a XenServer box.")
     sys.exit(4)
+elif debug == True:
+    print("XenServer machine identified.")
 
+# Ensure we found a valid XenServer Version.
 if xsver == None:
     print("Failed to identify XenServer Version.")
     sys.exit(5)
+elif debug == True:
+    print("XenServer Version " + xsver + " detected.")
 
+# Locate the 'xe' binary.
 xecli = which("xe")
 if xecli == None:
     print("Failed to locate the XE CLI Utility required for patching.")
     sys.exit(8)
-
+elif debug == True:
+    print("XE utility located OK")
+    
+# Now validate that XE is working:
+if not xetest():
+    print("XE CLI not responding. Calling 'xe-toolstack-restart':")
+    if not xetoolstack_restart():
+        print("Attempt to run xe-toolstack-restart failed. Quitting.")
+        sys.exit(98)
+    time.sleep(5)
+    if not xetest():
+        print("XE Still not responding. Quitting.")
+        sys.exit(99)
+    elif debug == True:
+        print("XE restarted and responding OK.")
+elif debug == True:
+    print("XE working OK")
+    
+### Start XML Grab + Parse
 try:
     # Get XML
+    if debug == True:
+        print("Downloading patch list XML")
     downloaded_data = urlopen(patchxmlurl)
 except Exception, err:
     # Handle Errors
@@ -401,10 +636,17 @@ except Exception, err:
 # Set "data" to readable/printable page content.
 data = downloaded_data.read()
 
-# DEBUG - Show output
-#print(data)
+#######################
+# DEBUG - Show output #
+#######################
+if debug == True:
+    print("-----------------------------")
+    print("RAW XML OUTPUT:")
+    print(data)
+    print("-----------------------------")
+#######################
 
-# Output to tmpfile
+# Output to tmpfile - Open file handle
 try:
     t = open(tmpfile, "wb")
 except IOError:
@@ -414,12 +656,16 @@ except IOError:
     except NameError:
         pass
     sys.exit(11)
-    
+
+# Output to tmpfile - Write Data + Close.
 try:
     t.write(data)
 finally:
     t.close()
 
+if debug == True:
+    print("XML written to " + tmpfile)    
+    
 # Parse XML to Vars
 xmldoc = minidom.parse(tmpfile)
 xmlpatches = xmldoc.getElementsByTagName('patch')
@@ -462,7 +708,7 @@ for s in xmlpatches:
         # PUSH TO LIST
         listappend(name_label, patch_url, uuid, name_description, after_apply_guidance, timestamp, url)
 
-## Validate that there is something defined... else quit.
+## Validate that there is something defined in the Patch list... else quit.
 if L == []:
     print("No Patches found on remote server for XS" + str(xsver))
     sys.exit(6)
@@ -470,16 +716,19 @@ if L == []:
 # OK, so now we have a complete list of patches that Citrix have to offer. Lets see what we have installed already,
 # and remove those from the list we made above.
 
+# First, we use a subprocess shell to get the local host's XenServer UUID
 out = None
 err = None
-get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`grep "^HOSTNAME=" /etc/sysconfig/network | awk -F= \'{print$2}\'` params=uuid --minimal')
+get_host_uuid_cmd = str(xecli) + str(' host-list hostname=`grep "^HOSTNAME=" /etc/sysconfig/network | awk -F= \'{print$2}\'` params=uuid --minimal')
 get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-print("Getting host list using: " + get_host_uuid_cmd)
+if debug == True:
+    print("Getting host list using: " + get_host_uuid_cmd)
 (out, err) = get_host_uuid.communicate()
 if not err and out != None:
     HOSTUUID_utf8 = out.decode("utf8")
     HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
-    print("Detected HOST UUID: " + HOSTUUID)
+    if debug == True:
+        print("Detected HOST UUID: " + HOSTUUID)
 else:
     print("Failed to get HostUUID from XE")
     sys.exit(7)
@@ -488,7 +737,7 @@ if HOSTUUID == "" or HOSTUUID == ['']:
     print("Error: Failed to obtain HOSTUUID from XE CLI")
     sys.exit(10)
 
-# Setup empty list:
+# Setup empty list to use in a moment:
 inst_patch_list = []
 
 out = None
@@ -498,7 +747,8 @@ if pool == True:
 else:
     get_inst_patch_cmd = str(xecli) + str(' patch-list hosts:contains="') + str(HOSTUUID) + str('" --minimal')
 get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-print("Get patch list using: " + get_inst_patch_cmd)
+if debug == True:
+    print("Get patch list using: " + get_inst_patch_cmd)
 (out, err) = get_inst_patch.communicate()
 if not err and out != None:
     inst_patch_utf8 = out.decode("utf8")
@@ -508,32 +758,65 @@ else:
     print("Failed to get Patch List from XE")
     sys.exit(9)
 
-### DEBUG
-#print("HOSTUUID: " + HOSTUUID)
-#print("Installed Patches: " + str(inst_patch_list))
+#############
+### DEBUG ###
+#############
+if debug == True:
+    print("HOSTUUID: " + HOSTUUID)
+    print("Installed Patches: " + str(inst_patch_list))
+#############
 
-# Should probably clean this line to whatever actually works... :)
+
+##### TEST DEBUG:
+if debug == True:
+    print("Trying to establish which 'null' is correct. If you see an 'X MATCHED' message, please notify me on Github via an Issue!")
+    ## A
+    if inst_patch_list == []:
+        print(" *** A MATCHED *** ")
+    ## B
+    if inst_patch_list == "":
+        print(" *** B MATCHED *** ")
+    ## C
+    if inst_patch_list == ['']:
+        print(" *** C MATCHED *** ")
+##### END TEST DEBUG
+    
+# If there's no patches installed on this machine yet, tell the user (in case they were curious)
 if inst_patch_list == [] or inst_patch_list == "" or inst_patch_list == ['']:
-    print("No local Patches are installed.")
-## Request that already installed patches are removed from the "to_be_installed" list:
-for uuid in inst_patch_list:
-    listremovedupe(uuid)
+    print("No Patches are currently installed.")
+# Else; request that already installed patches are removed from the "to_be_installed" list:
+else:
+    for uuid in inst_patch_list:
+        listremovedupe(uuid)
+    
 ## Request, where necessary, that patches in the Exclusions file are removed.
 if not exclusions == False:
     for namelabel in exclusions:
         listremoveexclude(namelabel)
+
+# Load the AutoExcludes:
+autoexclusions = getAutoExcludeList(autourl)
+## Patches loaded in from the auto-exclude file to be removed from the list next:    
+if not autoexclusions == False:
+    for namelabel in autoexclusions:
+        listremoveexclude(namelabel)
+        
 ## Lastly, sort the data by timestamp (to get oldest patches installed first).
 sortedlist = sorted(L, key=itemgetter('timestamp'))
-# Reassign the sorted list back to the old variable, 'cos i liked that one better.
+
+# Reassign the sorted list back to the old variable, 'cos I liked that one better.
 L = sortedlist
 
-
+# Dump the list to a temporary string for mangling into a readable output:
 var = str(L)
+# Do the mangling on the string to be human readable.
 vara = var.replace(',','\n').replace('{','\n').replace('}','').replace('[','').replace(']','').replace("'", "")
+# If we're done mangling, and the var is empty, then we have no patches to install.
 if vara == "":
     print("No Patches Required. System is up to date.")
     sys.exit(0)
 
+# If vara isn't empty, show the user a list of patches we're going to install.
 print("The following Patches are pending installation:")
 print(vara)
 
@@ -541,11 +824,12 @@ print(vara)
 if listonly == True:
     sys.exit(0)
 
-reboot = 0
+# If any of the patches in the list recommend a reboot after applying, increment the reboot var.
 for a in L:
     if str(a['after_apply_guidance']) == "restartHost":
         reboot = reboot + 1
 
+# If we find that one or more patches recommend a reboot, notify the user.
 if reboot > 0:
     print("\nNOTE: Installation of these items will require a reboot!")
     if not autoreboot == True:
@@ -553,7 +837,10 @@ if reboot > 0:
         print("")
     time.sleep(2)
 
+# If auto isn't set, ask the user if they're ready to start applying patches.
 if not auto == True:
+    # Inserted a brief sleep, as debug output can lag in such a way that you don't see this prompt otherwise!
+    time.sleep(2)
     ans = raw_input("\nWould you like to install these items? [y/n]: ")
     if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
         print("")
@@ -561,7 +848,7 @@ if not auto == True:
         print("You didn't want to patch...")
         sys.exit(0)
 
-## Check for mounted CDROMs and request unmount:
+# Check for mounted CDROMs and request unmount:
 out = None
 err = None
 cd_check_cmd = str(xecli) + str(' vm-cd-list --multiple')
@@ -572,29 +859,23 @@ if (err):
         print(str("Failed to check for mounted CD Images- Error: ") + str(err))
         sys.exit(110)
 if not out == "":
+    if debug == True:
+        print("CD Check Output: " + out)
     print("CD images are currently mounted to one or more VMs.")
     print("These must be unmounted before starting the patching process.")
     if auto == False:
         cd_ans = raw_input("\nWould you like to auto-umount these now? [y/n]: ")
         if str(cd_ans) == "y" or not str(cd_ans) == "yes" or str(cd_ans) == "Yes" or str(cd_ans) == "Y" or str(cd_ans) == "YES":
-            print("")
+            unmount_cd()
         else:
             print("Please unmount manually before proceeding with patching.")
             sys.exit(111)
-
-    print("Unmounting CD Images from VMs\n")
-    out = None
-    err = None
-    cd_unmount_cmd = str(xecli) + str(' vm-cd-eject --multiple')
-    do_cd_unmount = subprocess.Popen([cd_unmount_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    (out, err) = do_cd_unmount.communicate()
-    if (err):
-        print("An error occured when attempting to unmount the CD Images.")
-        print(str("Error is: ") + str(err))
-        print("Please manually unmount, and run the patcher again.")
-        sys.exit(112)
-
+    else:
+        unmount_cd()
+    
+# Now we're finally ready to actually start the patching!
 print("Starting patching...")
+# For each patch, run the apply_patch() function.
 for a in L:
    uuid = str(a['uuid'])
    patch_url = str(a['patch_url'])
@@ -603,13 +884,13 @@ for a in L:
    host_uuid = str(HOSTUUID)
    apply_patch(name_label, uuid, file_name, host_uuid)
 
+# Now patching is completed, if a reboot was required (as noted earlier), tell the user now; unless they flagged autoreboot.
 if reboot > 0:
     if not autoreboot == True:
         ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
         if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
             print("Rebooting...")
             os.system("reboot")
-
         else:
             print("OK, i'll let you reboot in your own time. Don't forget though!")
     else:
@@ -617,4 +898,6 @@ if reboot > 0:
         os.system("reboot")
 else:
     print("Restarting XAPI Toolstack...")
-    os.system("xe-toolstack-restart")
+    xetoolstack_restart()
+
+print("PATCHING COMPLETED")
