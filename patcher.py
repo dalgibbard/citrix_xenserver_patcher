@@ -69,8 +69,7 @@ patchxmlurl = 'http://updates.xensource.com/XenServer/updates.xml'
 # Where we can find auto-exclude files on the internet - filename expected is either:
 ## "XS${majver}${minver}${subver}_exclusions.py"   - ie. "XS621_excludes.py" for XenServer 6.2.1
 ## "XS${majver}${minver}_exclusions.py"            - ie. "XS62_excludes.py" for XenServer 6.2.1 (if the above doesn't exist) OR XenServer 6.2
-#autourl = 'https://raw.githubusercontent.com/dalgibbard/citrix_xenserver_patcher/master/exclusions'
-autourl = 'http://fingaz.info/exclusions'
+autourl = 'https://raw.githubusercontent.com/dalgibbard/citrix_xenserver_patcher/master/exclusions'
 # Where we can store some temporary data
 tmpfile = '/var/tmp/xml.tmp'
 ##########################
@@ -111,11 +110,11 @@ clean = True
 #######################################
 ## Define usage text
 def usage():
-    print("Usage: %s [-e /path/to/exclude_file] [-E] [-p] [-a] [-r] [-l] [-v] [-D]" % sys.argv[0])
+    print("Usage: %s [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-D] [-C] [-v]" % sys.argv[0])
     print("")
+    print("-p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.")
     print("-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.")
     print("-E                          => *Disable* the loading of auto-exclusions list from Github")
-    print("-p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.")
     print("-a                          => Enables auto-apply of patches - will NOT reboot host without below option.")
     print("-r                          => Enables automatic reboot of Host on completion of patching without prompts.")
     print("-l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.")
