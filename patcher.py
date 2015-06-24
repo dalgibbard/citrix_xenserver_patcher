@@ -147,8 +147,10 @@ for o, a in myopts:
         try:
             execfile(exclude_file)
         # If running it fails, it's not valid python
-        except Exception:
-            print("An error occured whilst loading the exclude file: " + exclude_file)
+        except Exception, err:
+            print("An error occurred whilst loading the exclude file: " + exclude_file)
+            if debug == True:
+                print("Error: " + str(err))
             sys.exit(1)
         # Check that the Python we just ran actually contains some valid exclusions!
         if exclusions == False:
@@ -522,17 +524,27 @@ def xetoolstack_restart():
 
 # Define a function for unmounting all CDs
 def unmount_cd():
-    print("Unmounting CD Images from VMs\n")
+    print("\n\nUnmounting CD Images from VMs...\n")
     out = None
     err = None
     cd_unmount_cmd = str(xecli) + str(' vm-cd-eject --multiple')
     do_cd_unmount = subprocess.Popen([cd_unmount_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_cd_unmount.communicate()
     if (err):
-        print("An error occured when attempting to unmount the CD Images.")
-        print(str("Error is: ") + str(err))
-        print("Please manually unmount, and run the patcher again.")
-        sys.exit(112)            
+        print("")
+        print("An error occurred when attempting to unmount the CD Images:")
+        print('"' + str(err) + '"')
+        print("\n** NOTE: ** Errors due to non-CDROM devices, or Empty drives can be ignored.")
+        if auto == True:
+            print("\nAttempting auto-upgrade anyway in 10s - press Ctrl+C to abort...")
+            time.sleep(10)
+        else:
+            cdans = raw_input("\nWould you like to continue anyway? [y/n]: ")
+            if str(cdans) == "y" or str(cdans) == "yes" or str(cdans) == "Yes" or str(cdans) == "Y" or str(cdans) == "YES":
+                print("Continuing...")
+            else:
+                print("Please manually unmount (or fix the reported issues), and run the patcher again.")
+                sys.exit(112)            
 ############################
 ### SCRIPT FUNCTIONS END ###
 ############################
