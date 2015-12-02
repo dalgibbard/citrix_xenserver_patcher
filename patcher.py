@@ -310,24 +310,24 @@ def download_patch(patch_url):
 
     print "Download Size: %s Bytes" % (file_size)
         
-        file_size_dl = 0
-        block_sz = 8192
-        while True:
-            buffer = u.read(block_sz)
-            if not buffer:
-                break
-            file_size_dl += len(buffer)
-            f.write(buffer)
-            if size_ok == False:
-                 status = r"%10d" % (file_size_dl)
-            else:
-                 status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
-            status = status + chr(8)*(len(status)+1)
-            print status,
-        f.close()
-        if not os.path.isfile(file_name):
-            print("\nERROR: File download for " + str(file_name) + " unsuccessful.")
-            sys.exit(15)
+    file_size_dl = 0
+    block_sz = 8192
+    while True:
+        buffer = u.read(block_sz)
+        if not buffer:
+            break
+        file_size_dl += len(buffer)
+        f.write(buffer)
+        if size_ok == False:
+             status = r"%10d" % (file_size_dl)
+        else:
+             status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
+        status = status + chr(8)*(len(status)+1)
+        print status,
+    f.close()
+    if not os.path.isfile(file_name):
+        print("\nERROR: File download for " + str(file_name) + " unsuccessful.")
+        sys.exit(15)
     return file_name
 
 def apply_patch(name_label, uuid, file_name, host_uuid):
