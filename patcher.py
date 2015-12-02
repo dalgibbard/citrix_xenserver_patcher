@@ -283,12 +283,21 @@ def download_patch(patch_url):
         sys.exit(2)
 
     meta = u.info()
-    file_size = int(meta.getheaders("Content-Length")[0])
+    try:
+        file_size = int(meta.getheaders("Content-Length")[0])
+        size_ok = True
+    except Exception, err:
+        print("Failed to get download size- will skip available disk space checks")
+        size_ok = False
 
     # Check available disk space
     s = os.statvfs('.')
     freebytes = s.f_bsize * s.f_bavail
-    doublesize = file_size * 2
+    if size_ok == False:
+        doublesize = 2048
+        file_size = 1
+    else:
+        doublesize = file_size * 2
     if long(doublesize) > long(freebytes):
         print(str("Insufficient storage space for Patch ") + str(file_name))
         print(str("Please free up some space, and run the patcher again."))
@@ -297,22 +306,25 @@ def download_patch(patch_url):
         sys.exit(20)
 
     print "Download Size: %s Bytes" % (file_size)
-    
-    file_size_dl = 0
-    block_sz = 8192
-    while True:
-        buffer = u.read(block_sz)
-        if not buffer:
-            break
-        file_size_dl += len(buffer)
-        f.write(buffer)
-        status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
-        status = status + chr(8)*(len(status)+1)
-        print status,
-    f.close()
-    if not os.path.isfile(file_name):
-        print("\nERROR: File download for " + str(file_name) + " unsuccessful.")
-        sys.exit(15)
+        
+        file_size_dl = 0
+        block_sz = 8192
+        while True:
+            buffer = u.read(block_sz)
+            if not buffer:
+                break
+            file_size_dl += len(buffer)
+            f.write(buffer)
+            if size_ok == False:
+                 status = r"%10d" % (file_size_dl)
+            else:
+                 status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
+            status = status + chr(8)*(len(status)+1)
+            print status,
+        f.close()
+        if not os.path.isfile(file_name):
+            print("\nERROR: File download for " + str(file_name) + " unsuccessful.")
+            sys.exit(15)
     return file_name
 
 def apply_patch(name_label, uuid, file_name, host_uuid):
