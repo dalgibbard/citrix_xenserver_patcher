@@ -272,7 +272,7 @@ def download_patch(patch_url):
     try:
         u = urlopen(url)
     except Exception, err:
-        print("Failed to Download Patch!")
+        print("...ERR: Failed to Download Patch!")
         print("Error: " + str(err))
         sys.exit(3)
         
@@ -286,8 +286,11 @@ def download_patch(patch_url):
     try:
         file_size = int(meta.getheaders("Content-Length")[0])
         size_ok = True
-    except Exception, err:
-        print("Failed to get download size- will skip available disk space checks")
+    except IndexError, err:
+        print("...WARN: Failed to get download size from: %s" % patch_url)
+        print("         Will attempt to continue download, with unknown file size")
+        time.sleep(4)
+	###############
         size_ok = False
 
     # Check available disk space
