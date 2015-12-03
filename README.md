@@ -43,15 +43,16 @@ Exclusions are necessary, particularly when Citrix release a Service Pack update
 
 Exclusions are defined in two different ways, which can be utilised together, or individually.
 ### Auto Exclusions
-Automatic Exclusions are provided within the 'exclusions' directory of this project by default. Please raise an issue, or raise a pull request with appropriate changes if you find anything to be wrong/missing.
+Automatic Exclusions are automatically loaded in via the internet (calls back to this project, to the files located within the 'exclusions' directory of this project).
+Please raise an issue, or raise a pull request with appropriate changes if you find anything to be wrong/missing.
 Auto-Exclusions can be _DISABLED_ by using the ```-E``` flag, like so:
 ```
 ## NOTE: ** NOT RECOMMENDED! **
 ./patcher.py -E
 ```
 ### Local / Manual Exclusions
-If you want to define your own list of patches to exclude, you can do so by providing the ```-e``` argument, and an appropriately formatted file.
-For an example of how this file should be formatted; see: *local_exclusions_example.py*
+If you want to define your own list of patches to exclude (example: the patcher is showing you a new patch file which you're not ready for yet), you can do so by providing the ```-e``` argument, and an appropriately formatted file.
+For an example of how this file should be formatted; see: *exclusions/local_exclusions_example.py*
 
 Example on using this flag:
 ```
