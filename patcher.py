@@ -592,7 +592,7 @@ try:
     for line in f:
         if re.search("PRODUCT_VERSION=", line):
             fullver = line.split("=")[1].replace("'", "")
-            shortver = fullver.split("-")["'", ""]
+            shortver = fullver.split("-")("'", "")
     if fullver == None or shortver == None:
         print("Failed to identify Major/Minor XenServer Version.")
         sys.exit(23)
