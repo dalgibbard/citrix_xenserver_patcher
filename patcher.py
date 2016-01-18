@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = "1.5.1"
+version = "1.5.2"
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot/restart the XE ToolStack if necessary.
@@ -568,13 +568,15 @@ def unmount_cd():
 ### MAIN CODE START ###
 #######################
 # Validate that we're running XenServer
-relver = '/etc/redhat-release'
+relver = '/etc/xensource-inventory'
 xs = False
 xsver = None
 
 # Open Filehandle to relver to check version
 try:
     f = open(relver, "r")
+    # If this file is openable, we can safely assume that it's a XenServer box
+    xs = True
 except IOError:
     print("Error Opening " + relver)
     try:
@@ -584,27 +586,26 @@ except IOError:
     sys.exit(11)
 
 # Read the relver contents, and split into variables for the XenServer version.
+fullver = None
+shortver = None
 try:
-    filedata = str(f.read().replace('\n', ''))
-    file_list = filedata.split()
-    ### DEBUG
-    #print(file_list)
-    if "XenServer" or "Xenserver" in file_list:
-        xs = True
-        fullver = file_list[2]
-        shortver = fullver.split("-")[0]
-        if len(shortver.split('.')) > 2:
-            # Provide 'xsver' for versions consisting of two and three segments. (eg: 6.2 vs 6.2.1)
-            if shortver.split('.')[2] == "0":
-                majver = shortver.split('.')[0]
-                minver = shortver.split('.')[1]
-		subver = ""
-                xsver = str(majver) + str(minver)
-            else:
-                majver = shortver.split('.')[0]
-                minver = shortver.split('.')[1]
-                subver = shortver.split('.')[2]
-                xsver = str(majver) + str(minver) + str(subver)
+    for line in f:
+        if re.search("PRODUCT_VERSION=", line):
+            fullver = line.split("=")[1].replace("'", "")
+            shortver = fullver.split("-")["'", ""]
+    if fullver == None or shortver == None:
+        print("Failed to identify Major/Minor XenServer Version.")
+        sys.exit(23)
+    majver = shortver.split('.')[0]
+    minver = shortver.split('.')[1]
+    if len(shortver.split('.')) > 2:
+        # Provide 'xsver' for versions consisting of two and three segments. (eg: 6.2 vs 6.2.1)
+        if shortver.split('.')[2] == "0":
+	    subver = ""
+            xsver = str(majver) + str(minver)
+        else:
+            subver = shortver.split('.')[2]
+            xsver = str(majver) + str(minver) + str(subver)
 finally:
     f.close()
 
