@@ -586,14 +586,12 @@ except IOError:
     sys.exit(11)
 
 # Read the relver contents, and split into variables for the XenServer version.
-fullver = None
 shortver = None
 try:
     for line in f:
         if re.search("PRODUCT_VERSION=", line):
-            fullver = line.split("=")[1].replace("'", "")
-            shortver = fullver.split("-")("'", "")
-    if fullver == None or shortver == None:
+            shortver = line.split("=")[1].replace("'", "")
+    if shortver == None:
         print("Failed to identify Major/Minor XenServer Version.")
         sys.exit(23)
     majver = shortver.split('.')[0]
