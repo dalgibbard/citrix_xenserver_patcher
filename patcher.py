@@ -613,7 +613,7 @@ try:
             subver = shortver.split('.')[2]
             xsver = str(majver) + str(minver) + str(subver)
     if debug == True:
-        print("xsver: " xsver)
+        print("xsver: " + xsver)
 finally:
     f.close()
 
