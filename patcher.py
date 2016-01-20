@@ -598,19 +598,13 @@ try:
         print("Detected XenServer Version: " + shortver)
     majver = shortver.split('.')[0]
     minver = shortver.split('.')[1]
+    # Provide 'xsver' for versions consisting of two and three segments. (eg: 6.2 vs 6.2.1)
     if len(shortver.split('.')) > 2:
-        if debug == True:
-            print("Version length split greater than 2")
-        # Provide 'xsver' for versions consisting of two and three segments. (eg: 6.2 vs 6.2.1)
-        if shortver.split('.')[2] == "0":
-            if debug == True:
-                print("Version segment 2 is zero")
+        subver = shortver.split('.')[2].strip()
+        if subver == '0':
 	    subver = ""
             xsver = str(majver) + str(minver)
         else:
-            if debug == True:
-                print("Version segment 2 is nonzero")
-            subver = shortver.split('.')[2]
             xsver = str(majver) + str(minver) + str(subver)
     if debug == True:
         print("xsver: " + xsver)
