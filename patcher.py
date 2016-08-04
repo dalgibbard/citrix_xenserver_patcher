@@ -823,10 +823,11 @@ if not exclusions == False:
     for namelabel in exclusions:
         listremoveexclude(namelabel)
 
-# Load the AutoExcludes:
-autoexclusions = getAutoExcludeList(autourl)
 ## Patches loaded in from the auto-exclude file to be removed from the list next:    
 if not autoexclusions == False:
+    # Load the AutoExcludes:
+    autoexclusions = getAutoExcludeList(autourl)
+
     for namelabel in autoexclusions:
         listremoveexclude(namelabel)
         
