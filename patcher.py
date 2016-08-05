@@ -823,12 +823,14 @@ if not exclusions == False:
     for namelabel in exclusions:
         listremoveexclude(namelabel)
 
-# Load the AutoExcludes:
-autoexclusions = getAutoExcludeList(autourl)
-## Patches loaded in from the auto-exclude file to be removed from the list next:    
-if not autoexclusions == False:
-    for namelabel in autoexclusions:
-        listremoveexclude(namelabel)
+if autoExclude:
+    # Load the AutoExcludes:
+    autoexclusions = getAutoExcludeList(autourl)
+
+    ## Patches loaded in from the auto-exclude file to be removed from the list next:    
+    if not autoexclusions == False:
+        for namelabel in autoexclusions:
+            listremoveexclude(namelabel)
         
 ## Lastly, sort the data by timestamp (to get oldest patches installed first).
 sortedlist = sorted(L, key=itemgetter('timestamp'))
