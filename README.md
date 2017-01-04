@@ -38,6 +38,9 @@ chmod a+x patcher.py
 
 * Run the patcher, and follow the prompts :)
 
+## Citrix Account Login
+As of patch XS65ESP1046, Citrix appears to be requiring an account login. This version will support authenticating against the Citrix site and then downloading patches. Login credentials can be set on the command line or placed permanently within the patcher.py file. The user variables are cuser and cpass.
+
 ## A Note On Exclusions
 Exclusions are necessary, particularly when Citrix release a Service Pack update which combines previously released patches (be sure to check the "to-be-installed" list for any "SP" patches, and report them if they're new!)
 
@@ -67,7 +70,7 @@ Example on using this flag:
 * The code supports a few other arguments too:
 
 ```bash
-Usage: ./patcher.py [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-D] [-C] [-v]
+Usage: ./patcher.py [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <username>] [-P <password>] [-D] [-C] [-v] [-h]
 
 -p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.
 -e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.
@@ -75,9 +78,50 @@ Usage: ./patcher.py [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-D] [-C
 -a                          => Enables auto-apply of patches - will NOT reboot host without below option.
 -r                          => Enables automatic reboot of Host on completion of patching without prompts.
 -l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.
+-U <username>               => Citrix account username
+-P <password>               => Citrix account password
 -D                          => Enable DEBUG output
 -C                          => *Disable* the automatic cleaning of patches on success.
 -v                          => Display Version and Exit.
+```
+
+citrix_xenserver_patch_checker
+==============================
+
+A tool to check for patches that can be run as a non root user with root credentials plus additions to format output for consumption by Nagios.
+
+## How To Use
+* SSH to your XenServer Host (Use PuTTY if using a Windows PC).
+* Ensure you have root user credentials
+* Get the XenServer Patch Checker Script
+* Set the permissions as executable
+* OPTIONAL: Create your own exclusions file. (Exclusions will be loaded from Github, but feel free to produce your own list too.)
+* Run it!
+
+```
+wget --no-check-certificate -O patch_checker.py https://raw.github.com/bkci/citrix_xenserver_patcher/master/patch_checker.py
+chmod a+x patch_checker.py
+
+# List patches:
+./patch_checker.py -u root -p pass
+
+# Pool Master node:
+./patch_checker.py -u root -p pass -n
+```
+
+## Usage:
+
+```bash
+Usage: ./patch_checker.py [-e /path/to/exclude_file] [-E] [-u <username>] [-p <password>] [-n] [-D] [-v] [-h]
+
+-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.
+-E                          => *Disable* the loading of auto-exclusions list from Github
+-n                          => Check for available patches and return Nagios OK or WARN for system monitoring
+-u <username>               => xe username - for nagios monitoring
+-p <password>               => xe password - for nagios monitoring
+-D                          => Enable DEBUG output
+-v                          => Display Version and Exit.
+-h                          => Display this message and Exit.
 ```
 
 Tags: XenServer Citrix Patch Patching Patcher Auto-Patcher Autopatcher Xen Server Python

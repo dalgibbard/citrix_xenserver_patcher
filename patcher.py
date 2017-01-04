@@ -27,7 +27,7 @@ version = "1.5.2"
 ############################
 ### IMPORT MODULES START ###
 ############################
-import sys, re, subprocess, os, getopt, time, pprint, signal
+import sys, re, subprocess, os, getopt, time, pprint, signal, base64, cookielib, urllib2, urllib
 from xml.dom import minidom
 from operator import itemgetter
 try:
@@ -72,6 +72,10 @@ patchxmlurl = 'http://updates.xensource.com/XenServer/updates.xml'
 autourl = 'https://raw.githubusercontent.com/dalgibbard/citrix_xenserver_patcher/master/exclusions'
 # Where we can store some temporary data
 tmpfile = '/var/tmp/xml.tmp'
+# Citrix Login credentials
+cuser = ''
+cpass = ''
+
 ##########################
 ### USER VARIABLES END ###
 ##########################
@@ -101,6 +105,10 @@ reboot = 0
 debug = False
 # Clean out installed patches by default
 clean = True
+# Citrix Login URLs
+citrix_login_url = 'https://www.citrix.com/login/bridge?url=https%3A%2F%2Fsupport.citrix.com%2Farticle%2FCTX219378'
+citrix_err_url = 'https://www.citrix.com/login?url=https%3A%2F%2Fsupport.citrix.com%2Farticle%2FCTX219378&err=y'
+citrix_authentication_url = 'https://identity.citrix.com/Utility/STS/Sign-In'
 ######################################
 ### SYSTEM / INITIAL VARIABLES END ###
 ######################################
@@ -109,8 +117,8 @@ clean = True
 ### USAGE + ARGUMENT HANDLING START ###
 #######################################
 ## Define usage text
-def usage():
-    print("Usage: %s [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-D] [-C] [-v]" % sys.argv[0])
+def usage(exval=1):
+    print("Usage: %s [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <username>] [-P <password>] [-D] [-C] [-v]" % sys.argv[0])
     print("")
     print("-p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.")
     print("-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.")
@@ -119,14 +127,17 @@ def usage():
     print("-r                          => Enables automatic reboot of Host on completion of patching without prompts.")
     print("-l                          => Just list available patches, and Exit. Cannot be used with '-a' or '-r'.")
     print("-D                          => Enable DEBUG output")
+    print("-U <username>               => Citrix account username")
+    print("-P <password>               => Citrix account password")
     print("-C                          => *Disable* the automatic cleaning of patches on success.")
     print("-v                          => Display Version and Exit.")
-    sys.exit(1)
+    print("-h                          => Display this message and Exit.")
+    sys.exit(exval)
 
 
 # Parse Args:
 try:
-    myopts, args = getopt.getopt(sys.argv[1:],"vpe:EalrDC")
+    myopts, args = getopt.getopt(sys.argv[1:],"vhpe:EalrUPDC")
 except getopt.GetoptError:
     usage()
 
@@ -135,6 +146,9 @@ for o, a in myopts:
         # Version print and Quit.
         print("Citrix_XenServer_Patcher_Version: " + str(version))
         sys.exit(0)
+    if o == '-h':
+        # Version print and Quit.
+        usage(0)
     elif o == '-e':
         # Set the exclusion file
         exclude_file = str(a)
@@ -189,6 +203,12 @@ for o, a in myopts:
             print("Cannot use 'list' with 'auto' or 'autoreboot' arguments.")
             print("")
             usage()
+    elif o == '-U':
+        # Set citrix user
+        cuser = str(a)
+    elif o == '-P':
+        # set citrix pass
+        cpass = str(a)
     elif o == '-C':
         clean = False
     elif o == '-D':
@@ -263,6 +283,42 @@ def which(program):
                 return exe_file
 
     return None
+
+def login():
+    print("")
+    print("Logging in")
+    # Store the cookies and create an opener that will hold them
+    cj = cookielib.CookieJar()
+    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+
+    # Add our headers
+    opener.addheaders = [('User-agent', 'XenPatch')]
+
+    # Install our opener (note that this changes the global opener to the one
+    # we just made, but you can also just call opener.open() if you want)
+    urllib2.install_opener(opener)
+
+    # Input parameters we are going to send
+    payload = {
+      'returnURL'  : citrix_login_url,
+      'errorURL'   : citrix_err_url,
+      'persistent' : '1',
+      'username'   : cuser,
+      'password'   : cpass
+      }
+
+    # Use urllib to encode the payload
+    data = urllib.urlencode(payload)
+
+    # Build our Request object (supplying 'data' makes it a POST)
+    req = urllib2.Request(citrix_authentication_url, data)
+    try:
+        u = urllib2.urlopen(req)
+	contents = u.read()
+    except Exception, err:
+        print("...ERR: Failed to Login!")
+        print("Error: " + str(err))
+        sys.exit(3)
 
 def download_patch(patch_url):
     url = patch_url
@@ -906,6 +962,9 @@ if not out == "":
     
 # Now we're finally ready to actually start the patching!
 print("Starting patching...")
+# check for login 
+if cuser and cpass:
+    login()
 # For each patch, run the apply_patch() function.
 for a in L:
    uuid = str(a['uuid'])
@@ -932,3 +991,4 @@ else:
     xetoolstack_restart()
 
 print("PATCHING COMPLETED")
+
