@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = "1.5.2"
+version = "1.5.3"
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot/restart the XE ToolStack if necessary.
@@ -322,7 +322,7 @@ def login():
 
 def download_patch(patch_url):
     url = patch_url
-    file_name = url.split('/')[-1]
+    file_name = url.split('/')[-1].split('&')[0]
     print("")
     print("Downloading: " + str(file_name))
     try:
