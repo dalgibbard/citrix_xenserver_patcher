@@ -75,6 +75,8 @@ tmpfile = '/var/tmp/xml.tmp'
 # Citrix Login credentials
 cuser = ''
 cpass = ''
+# XenServer version use ISO patch
+xenserver_user_isopatch = ['7.1.0',]
 
 ##########################
 ### USER VARIABLES END ###
@@ -105,6 +107,7 @@ reboot = 0
 debug = False
 # Clean out installed patches by default
 clean = True
+reuse_download = True
 # Citrix Login URLs
 citrix_login_url = 'https://www.citrix.com/login/bridge?url=https%3A%2F%2Fsupport.citrix.com%2Farticle%2FCTX219378'
 citrix_err_url = 'https://www.citrix.com/login?url=https%3A%2F%2Fsupport.citrix.com%2Farticle%2FCTX219378&err=y'
@@ -227,6 +230,11 @@ if debug == True:
 ##############################
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="0", url="None"):
     ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
+    if shortver.strip() in xenserver_user_isopatch:
+	uuid = uuid.split('-')
+	uuid[1] = re.sub('.', '0', uuid[1])
+	uuid[2] = re.sub('.', '0', uuid[2])
+	uuid = '-'.join(uuid)
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
     if debug == True:
 	    print("Adding patch to list: " + str(dict))
@@ -323,6 +331,15 @@ def login():
 def download_patch(patch_url):
     url = patch_url
     file_name = url.split('/')[-1].split('&')[0]
+    if reuse_download:
+        file_name = '.'.join(file_name.split('.')[0:-1])+".iso"
+        if os.path.isfile(file_name):
+            return file_name
+        file_name = '.'.join(file_name.split('.')[0:-1])+".xsupdate"
+        if os.path.isfile(file_name):
+            return file_name
+        file_name = url.split('/')[-1].split('&')[0]
+            
     print("")
     print("Downloading: " + str(file_name))
     try:
@@ -388,22 +405,27 @@ def download_patch(patch_url):
 
 def apply_patch(name_label, uuid, file_name, host_uuid):
     print("\nApplying: " + str(name_label))
-    print("Uncompressing...")
-    patch_unzip_cmd = str("unzip -u ") + str(file_name)
-    ### Ready for patch extract
-    out = None
-    err = None
-    do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    (out, err) = do_patch_unzip.communicate()
-    if (err and out != None ):
-        print("Error extracting compressed patchfile: " + str(file_name))
-    if clean == True:
-        os.remove(file_name)
+    if file_name.endswith(".zip"):
+        print("Uncompressing...")
+        patch_unzip_cmd = str("unzip -u ") + str(file_name)
+        ### Ready for patch extract
+        out = None
+        err = None
+        do_patch_unzip = subprocess.Popen([patch_unzip_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        (out, err) = do_patch_unzip.communicate()
+        if (err and out != None ):
+            print("Error extracting compressed patchfile: " + str(file_name))
+        if clean == True:
+            os.remove(file_name)
     uncompfile = str(name_label) + str(".xsupdate")
     # Check {name_label}.xsupdate exists
     if not os.path.isfile(uncompfile):
         print("Failed to locate unzipped patchfile: " + str(uncompfile))
-        sys.exit(16)
+        uncompfile = str(name_label) + str(".iso")
+        print("Trying with: " + str(uncompfile))
+    	if not os.path.isfile(uncompfile):
+            print("Failed to locate unzipped patchfile: " + str(uncompfile))
+            sys.exit(16)
     # Internal upload to XS patcher
     print("Internal Upload...")
     patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(uncompfile)
@@ -440,12 +462,13 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
         patch_upload_uuid_utf8 = out.decode("utf8")
         patch_upload_uuid = str(patch_upload_uuid_utf8.replace('\n', ''))
         patch_upload_uuid.rstrip('\r\n')
-        if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
-            print("Patch internal upload failed for: " + str(uncompfile))
-            print("patch_upload_uuid = " + str(patch_upload_uuid))
-            print("uuid = " + str(uuid))
-            print("out = " + str(out))
-            sys.exit(16)
+	if not shortver.strip() in xenserver_user_isopatch:
+	    if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
+	        print("Patch internal upload failed for: " + str(uncompfile))
+	        print("patch_upload_uuid = " + str(patch_upload_uuid))
+	        print("uuid = " + str(uuid))
+	        print("out = " + str(out))
+	        sys.exit(16)
 
     print("Applying Patch " + str(uuid))
     if pool == True:
@@ -479,15 +502,16 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     if not ( patch_apply_uuid != None and patch_apply_uuid == uuid ):
         print("Patch apply failed for: " + str(uncompfile))
         sys.exit(19)
-        
+
     ## Cleanup
     if clean == True:
-        if debug == True:
-            print("Deleting file: " + uncompfile)
-        try:
-            os.remove(uncompfile)
-        except OSError:
-            print("Couldn't find file: " + uncompfile + " - Won't remove it.")
+        if not reuse_download == True:
+            if debug == True:
+                print("Deleting file: " + uncompfile)
+            try:
+                os.remove(uncompfile)
+            except OSError:
+                print("Couldn't find file: " + uncompfile + " - Won't remove it.")
                     
         srcpkg_name = name_label + "-src-pkgs.tar.bz2"
         if debug == True:
@@ -842,7 +866,6 @@ if not err and out != None:
 else:
     print("Failed to get Patch List from XE")
     sys.exit(9)
-
 #############
 ### DEBUG ###
 #############
