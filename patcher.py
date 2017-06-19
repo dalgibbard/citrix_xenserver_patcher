@@ -108,6 +108,7 @@ debug = False
 # Clean out installed patches by default
 clean = True
 reuse_download = True
+quiet = False
 # Citrix Login URLs
 citrix_login_url = 'https://www.citrix.com/login/bridge?url=https%3A%2F%2Fsupport.citrix.com%2Farticle%2FCTX219378'
 citrix_err_url = 'https://www.citrix.com/login?url=https%3A%2F%2Fsupport.citrix.com%2Farticle%2FCTX219378&err=y'
@@ -121,7 +122,7 @@ citrix_authentication_url = 'https://identity.citrix.com/Utility/STS/Sign-In'
 #######################################
 ## Define usage text
 def usage(exval=1):
-    print("Usage: %s [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <username>] [-P <password>] [-D] [-C] [-v]" % sys.argv[0])
+    print("Usage: %s [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <username>] [-P <password>] [-D] [-C] [-v] [-q]" % sys.argv[0])
     print("")
     print("-p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.")
     print("-e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.")
@@ -132,6 +133,7 @@ def usage(exval=1):
     print("-D                          => Enable DEBUG output")
     print("-U <username>               => Citrix account username")
     print("-P <password>               => Citrix account password")
+    print("-q                          => Quiet (less verbose) mode")
     print("-C                          => *Disable* the automatic cleaning of patches on success.")
     print("-v                          => Display Version and Exit.")
     print("-h                          => Display this message and Exit.")
@@ -215,7 +217,9 @@ for o, a in myopts:
     elif o == '-C':
         clean = False
     elif o == '-D':
-	    debug = True
+        debug = True
+    elif o == '-q':
+        quiet = True
     else:
         usage()
 #####################################
@@ -396,7 +400,7 @@ def download_patch(patch_url):
         else:
              status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
         status = status + chr(8)*(len(status)+1)
-        print status,
+        if not quiet: print status,
     f.close()
     if not os.path.isfile(file_name):
         print("\nERROR: File download for " + str(file_name) + " unsuccessful.")
