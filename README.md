@@ -81,6 +81,7 @@ Usage: ./patcher.py [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <use
 -U <username>               => Citrix account username
 -P <password>               => Citrix account password
 -D                          => Enable DEBUG output
+-q                          => Quiet (less verbose) mode
 -C                          => *Disable* the automatic cleaning of patches on success.
 -v                          => Display Version and Exit.
 ```
