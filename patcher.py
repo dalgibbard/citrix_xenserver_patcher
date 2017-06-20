@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = "1.5.3"
+version = "1.6.0"
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot/restart the XE ToolStack if necessary.
@@ -23,6 +23,17 @@ version = "1.5.3"
 # Both myself and this code are in no way affiliated with Citrix. This code is not supported by Citrix in any way.
 # Use of the code within this project is without warranty, and neither myself, the company I work for, nor other contributors of this project are to blame for any issues which may arise, and therefore cannot be held accountable.
 # Any use of this code is done so at your own risk.
+
+# CONTRIBUTERS: (In no particular order)
+# * dalgibbard - owner/creator
+# * jcharaoui / guidy - Pool patching functionality
+# * bkci - Login functionality, Nagios check, and fixes
+# * ssamson-tis - Initial 7.1+ support (ISO patches) and patch re-use
+# * mf - Patching fixes
+# * bpbp-boop - Auto-exclusion fix
+# * dack - xecli host fix
+# * dylanmtaylor - Readme edit
+# * tugzrida - Exclusions updates
 
 ############################
 ### IMPORT MODULES START ###
@@ -75,8 +86,6 @@ tmpfile = '/var/tmp/xml.tmp'
 # Citrix Login credentials
 cuser = ''
 cpass = ''
-# XenServer version use ISO patch
-xenserver_user_isopatch = ['7.1.0',]
 
 ##########################
 ### USER VARIABLES END ###
@@ -142,7 +151,7 @@ def usage(exval=1):
 
 # Parse Args:
 try:
-    myopts, args = getopt.getopt(sys.argv[1:],"vhpe:EalrUPDC")
+    myopts, args = getopt.getopt(sys.argv[1:],"vhpe:EalrUPDCq")
 except getopt.GetoptError:
     usage()
 
@@ -234,11 +243,7 @@ if debug == True:
 ##############################
 def listappend(name_label, patch_url, uuid, name_description="None", after_apply_guidance="None", timestamp="0", url="None"):
     ''' Function for placing collected/parsed Patch File information into a dictionary, and then into a List '''
-    if shortver.strip() in xenserver_user_isopatch:
-	uuid = uuid.split('-')
-	uuid[1] = re.sub('.', '0', uuid[1])
-	uuid[2] = re.sub('.', '0', uuid[2])
-	uuid = '-'.join(uuid)
+
     dict = { "name_label": name_label, "name_description": name_description, "patch_url": patch_url, "uuid": uuid, "after_apply_guidance": after_apply_guidance, "timestamp": timestamp, "url": url }
     if debug == True:
 	    print("Adding patch to list: " + str(dict))
@@ -421,28 +426,29 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
             print("Error extracting compressed patchfile: " + str(file_name))
         if clean == True:
             os.remove(file_name)
-    uncompfile = str(name_label) + str(".xsupdate")
     # Check {name_label}.xsupdate exists
-    if not os.path.isfile(uncompfile):
-        print("Failed to locate unzipped patchfile: " + str(uncompfile))
+    if os.path.isfile(str(name_label) + str(".xsupdate")):
+        uncompfile = str(name_label) + str(".xsupdate")
+    elif os.path.isfile(str(name_label) + str(".iso")):
         uncompfile = str(name_label) + str(".iso")
-        print("Trying with: " + str(uncompfile))
-    	if not os.path.isfile(uncompfile):
-            print("Failed to locate unzipped patchfile: " + str(uncompfile))
-            sys.exit(16)
+    else:
+        print("Failed to locate unzipped " + str(name_label) + (".xsupdate or ") + str(name_label) + (".iso patchfile(s)"))
+        sys.exit(16)
+    print("Found unzipped patchfile: " + str(uncompfile))
+
     # Internal upload to XS patcher
     print("Internal Upload...")
-    patch_upload_cmd = str(xecli) + str(" patch-upload file-name=") + str(uncompfile)
+    patch_upload_cmd = str(xecli) + str(" ") + upload_cmd + (" file-name=") + str(uncompfile)
     do_patch_upload = subprocess.Popen([patch_upload_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     # On Python 2.4 check_* functions have not been yet implemented. Lets wait until Popen completes and read out the return code
     do_patch_upload.wait()
     (out, err) = do_patch_upload.communicate()
-    # Upload may fail if file has previously already been uploaded but not applied
     if (err):
         print("XE Error detected: " + err)
         print("Return code is: " + str(do_patch_upload.returncode))
         error_block = err.split('\n')
-        if (do_patch_upload.returncode == 1 and error_block[0] == "The uploaded patch file already exists"):
+        ## This matches cases where upload has already happened.
+        if (do_patch_upload.returncode == 1 and ( (error_block[0] == "The uploaded patch file already exists") or (error_block[0] == "The uploaded update already exists") )):
             print("Patch previously uploaded, attempting to reapply " + str(uuid))
         else:        
             print("New error detected, aborting")
@@ -453,7 +459,7 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
         err = None
         patch_upload_uuid = None
         #Do not pass hostuuid here as the patch has not been applied yet and the patch-list for SRO will come back empty
-        patch_upload_verify_cmd = str(xecli) + str(' patch-list params=uuid uuid=') + str(uuid) + str(" --minimal")
+        patch_upload_verify_cmd = str(xecli) + str(' ') + list_cmd + (' params=uuid uuid=') + str(uuid) + str(" --minimal")
         do_patch_upload_verify = subprocess.Popen([patch_upload_verify_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         (out, err) = do_patch_upload_verify.communicate()
     
@@ -461,24 +467,23 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
             print("Failed to validate the uploaded patch: " + str(uncompfile) + "\nError: " + str(err))
             sys.exit(17)
         else:
-            print("Completed: " + str(out))
+            print("Upload Successful: " + str(out))
 
         patch_upload_uuid_utf8 = out.decode("utf8")
         patch_upload_uuid = str(patch_upload_uuid_utf8.replace('\n', ''))
         patch_upload_uuid.rstrip('\r\n')
-	if not shortver.strip() in xenserver_user_isopatch:
-	    if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
-	        print("Patch internal upload failed for: " + str(uncompfile))
-	        print("patch_upload_uuid = " + str(patch_upload_uuid))
-	        print("uuid = " + str(uuid))
-	        print("out = " + str(out))
-	        sys.exit(16)
+	if not ( patch_upload_uuid != None and patch_upload_uuid == uuid ):
+	    print("Patch internal upload failed for: " + str(uncompfile))
+	    print("patch_upload_uuid = " + str(patch_upload_uuid))
+	    print("uuid = " + str(uuid))
+	    print("out = " + str(out))
+	    sys.exit(16)
 
     print("Applying Patch " + str(uuid))
     if pool == True:
-        patch_apply_cmd = str(xecli) + str(" patch-pool-apply uuid=") + str(uuid)
+        patch_apply_cmd = str(xecli) + str(" ") + pool_apply_cmd + (" uuid=") + str(uuid)
     else:
-        patch_apply_cmd = str(xecli) + str(" patch-apply uuid=") + str(uuid) + str(" host-uuid=") + str(host_uuid)
+        patch_apply_cmd = str(xecli) + str(" ") + apply_cmd + host_uuid + (" uuid=") + str(uuid)
     if debug == True:
         print(str(patch_apply_cmd))
     do_patch_apply = subprocess.Popen([patch_apply_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -492,9 +497,9 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     out = None
     err = None
     if pool == True:
-        patch_apply_verify_cmd = str(xecli) + str(' patch-list ') + str(' params=uuid uuid=') + str(uuid) + str(" --minimal")
+        patch_apply_verify_cmd = str(xecli) + str(' ') + list_cmd + str(' params=uuid uuid=') + str(uuid) + str(" --minimal")
     else:
-        patch_apply_verify_cmd = str(xecli) + str(' patch-list hosts:contains="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
+        patch_apply_verify_cmd = str(xecli) + str(' ') + list_cmd + (' hosts:contains="') + str(host_uuid) + str('" params=uuid uuid=') + str(uuid) + str(" --minimal")
 
     do_patch_apply_verify = subprocess.Popen([patch_apply_verify_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (out, err) = do_patch_apply_verify.communicate()
@@ -506,29 +511,36 @@ def apply_patch(name_label, uuid, file_name, host_uuid):
     if not ( patch_apply_uuid != None and patch_apply_uuid == uuid ):
         print("Patch apply failed for: " + str(uncompfile))
         sys.exit(19)
+    print("Patch Successful: " + str(uncompfile))
 
     ## Cleanup
     if clean == True:
+        print("Running post-patch cleanup...")
         if not reuse_download == True:
             if debug == True:
                 print("Deleting file: " + uncompfile)
             try:
                 os.remove(uncompfile)
+                print("Removed file: " + uncompfile)
             except OSError:
-                print("Couldn't find file: " + uncompfile + " - Won't remove it.")
-                    
+                pass
+
         srcpkg_name = name_label + "-src-pkgs.tar.bz2"
         if debug == True:
             print("Deleting file: " + srcpkg_name)
         try:
             os.remove(srcpkg_name)
+            print("Removed file: " + srcpkg_name)
         except OSError:
-            print("Couldn't find file: " + srcpkg_name + " - Won't remove it.")
+            pass
 
         # Cleanup the /var/patch/ stuff using the XE Cli
         out = None
         err = None
-        clean_var_cmd = str(xecli) + str(' patch-clean uuid=' + uuid)
+        if pool or isopatch:
+            clean_var_cmd = str(xecli) + str(' ') + pool_clean + (' uuid=' + uuid)
+        else:
+            clean_var_cmd = str(xecli) + str(' patch-clean uuid=' + uuid)
         clean_var = subprocess.Popen([clean_var_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         if debug == True:
             print("Running clean for Patch UUID " + uuid)
@@ -731,7 +743,24 @@ if not xetest():
         print("XE restarted and responding OK.")
 elif debug == True:
     print("XE working OK")
-    
+
+# Setup upload/apply commands based on OS Version.
+# If version > 7.1 UUID format changed for ISO patching to replace 2nd and 3rd segments with zeros post-upload.
+if (int(majver) > 7) or ((int(majver) == 7) and (int(minver) >= 1 )):
+    isopatch = True
+    list_cmd="update-list"
+    upload_cmd="update-upload"
+    apply_cmd="update-apply host="
+    pool_apply_cmd="update-pool-apply"
+    pool_clean="update-pool-clean"
+else:
+    isopatch = False
+    list_cmd="patch-list"
+    upload_cmd="patch-upload"
+    apply_cmd="patch-apply host-uuid="
+    pool_apply_cmd="patch-pool-apply"
+    pool_clean="patch-pool-clean"
+
 ### Start XML Grab + Parse
 try:
     # Get XML
@@ -842,10 +871,38 @@ if not err and out != None:
     HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
     if debug == True:
         print("Detected HOST UUID: " + HOSTUUID)
-else:
-    print("Failed to get HostUUID from XE")
-    sys.exit(7)
 
+# Try the next method if empty
+if HOSTUUID == "" or HOSTUUID == ['']:
+    out = None
+    err = None
+    get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`grep "^HOSTNAME=" /etc/sysconfig/network | awk -F= \'{print$2}\'` params=uuid --minimal')
+    get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if debug == True:
+        print("Getting host list using: " + get_host_uuid_cmd)
+    (out, err) = get_host_uuid.communicate()
+    if not err and out != None:
+        HOSTUUID_utf8 = out.decode("utf8")
+        HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
+        if debug == True:
+            print("Detected HOST UUID: " + HOSTUUID)
+
+# Try the next method if empty
+if HOSTUUID == "" or HOSTUUID == ['']:
+    out = None
+    err = None
+    get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`cat /etc/hostname` params=uuid --minimal')
+    get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if debug == True:
+        print("Getting host list using: " + get_host_uuid_cmd)
+    (out, err) = get_host_uuid.communicate()
+    if not err and out != None:
+        HOSTUUID_utf8 = out.decode("utf8")
+        HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
+        if debug == True:
+            print("Detected HOST UUID: " + HOSTUUID)
+
+# Trap if the HostUUID is still null
 if HOSTUUID == "" or HOSTUUID == ['']:
     print("Error: Failed to obtain HOSTUUID from XE CLI")
     sys.exit(10)
@@ -856,9 +913,9 @@ inst_patch_list = []
 out = None
 err = None
 if pool == True:
-    get_inst_patch_cmd = str(xecli) + str(' patch-list ') + str(' --minimal')
+    get_inst_patch_cmd = str(xecli) + str(' ') + list_cmd + str(' --minimal')
 else:
-    get_inst_patch_cmd = str(xecli) + str(' patch-list hosts:contains="') + str(HOSTUUID) + str('" --minimal')
+    get_inst_patch_cmd = str(xecli) + str(' ') + list_cmd + (' hosts:contains="') + str(HOSTUUID) + str('" --minimal')
 get_inst_patch = subprocess.Popen([get_inst_patch_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 if debug == True:
     print("Get patch list using: " + get_inst_patch_cmd)
