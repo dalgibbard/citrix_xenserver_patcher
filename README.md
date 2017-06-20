@@ -70,7 +70,7 @@ Example on using this flag:
 * The code supports a few other arguments too:
 
 ```bash
-Usage: ./patcher.py [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <username>] [-P <password>] [-D] [-C] [-v] [-h]
+Usage: ./patcher.py [-p] [-e /path/to/exclude_file] [-E] [-a] [-r] [-l] [-U <username>] [-P <password>] [-D] [-C] [-v] [-q] [-h]
 
 -p                          => POOL MODE: Apply Patches to the whole Pool. It must be done on the Pool Master.
 -e /path/to/exclude_file    => Allows user to define a Python List of Patches NOT to install.
