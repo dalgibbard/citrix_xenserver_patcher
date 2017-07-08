@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Citrix XenServer Patcher
-version = "1.6.0"
+version = "1.6.1"
 # -- Designed to automatically review available patches from Citrix's XML API,
 #    compare with already installed patches, and apply as necessary- prompting the user
 #    to reboot/restart the XE ToolStack if necessary.
@@ -1060,13 +1060,16 @@ for a in L:
 
 # Now patching is completed, if a reboot was required (as noted earlier), tell the user now; unless they flagged autoreboot.
 if reboot > 0:
-    if not autoreboot == True:
-        ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
-        if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
-            print("Rebooting...")
-            os.system("reboot")
+    if not autoreboot:
+        if quiet:
+          print("Please remember to reboot your system to complete the patch installation.")
         else:
-            print("OK, i'll let you reboot in your own time. Don't forget though!")
+            ans = raw_input("\nA reboot is now required. Would you like to reboot now? [y/n]: ")
+            if str(ans) == "y" or str(ans) == "yes" or str(ans) == "Yes" or str(ans) == "Y" or str(ans) == "YES":
+                print("Rebooting...")
+                os.system("reboot")
+            else:
+                print("OK, i'll let you reboot in your own time. Don't forget though!")
     else:
         print("Rebooting...")
         os.system("reboot")
