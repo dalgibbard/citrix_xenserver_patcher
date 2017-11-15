@@ -18,6 +18,8 @@ develop-eggs
 lib
 lib64
 __pycache__
+#Iso files downloaded by the patcher
+*.iso
 
 # Installer logs
 pip-log.txt

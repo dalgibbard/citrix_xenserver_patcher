@@ -902,6 +902,21 @@ if HOSTUUID == "" or HOSTUUID == ['']:
         if debug == True:
             print("Detected HOST UUID: " + HOSTUUID)
 
+# Try finding host UUID by comparing to hostnamectl
+if HOSTUUID == "" or HOSTUUID == ['']:
+    out = None
+    err = None
+    get_host_uuid_cmd = str(xecli) + str(' host-list name-label=`hostnamectl --static` params=uuid --minimal')
+    get_host_uuid = subprocess.Popen([get_host_uuid_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if debug == True:
+        print("Getting host list using: " + get_host_uuid_cmd)
+    (out, err) = get_host_uuid.communicate()
+    if not err and out != None:
+        HOSTUUID_utf8 = out.decode("utf8")
+        HOSTUUID = str(HOSTUUID_utf8.replace('\n', ''))
+        if debug == True:
+            print("Detected HOST UUID: " + HOSTUUID)
+
 # Trap if the HostUUID is still null
 if HOSTUUID == "" or HOSTUUID == ['']:
     print("Error: Failed to obtain HOSTUUID from XE CLI")
