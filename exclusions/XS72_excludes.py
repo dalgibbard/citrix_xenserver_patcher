@@ -1,1 +1,1 @@
-autoexclusions = [ ]
+autoexclusions = [ "XS72E013" ]
